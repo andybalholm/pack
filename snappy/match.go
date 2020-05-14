@@ -1,6 +1,10 @@
 package snappy
 
-import "github.com/andybalholm/press"
+import (
+	"encoding/binary"
+
+	"github.com/andybalholm/press"
+)
 
 const inputMargin = 16 - 1
 
@@ -55,7 +59,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 	// The encoded form must start with a literal, as there are no previous
 	// bytes to copy, so we start looking for hash matches at s == 1.
 	s := 1
-	nextHash := hash(load32(src, s), shift)
+	nextHash := hash(binary.LittleEndian.Uint32(src[s:]), shift)
 
 	for {
 		// Copied from the C++ snappy implementation:
@@ -87,8 +91,8 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 			}
 			candidate = int(table[nextHash&tableMask])
 			table[nextHash&tableMask] = uint16(s)
-			nextHash = hash(load32(src, nextS), shift)
-			if load32(src, s) == load32(src, candidate) {
+			nextHash = hash(binary.LittleEndian.Uint32(src[nextS:]), shift)
+			if binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
 				break
 			}
 		}
@@ -132,13 +136,13 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 			// at s+1. At least on GOARCH=amd64, these three hash calculations
 			// are faster as one load64 call (with some shifts) instead of
 			// three load32 calls.
-			x := load64(src, s-1)
+			x := binary.LittleEndian.Uint64(src[s-1:])
 			prevHash := hash(uint32(x>>0), shift)
 			table[prevHash&tableMask] = uint16(s - 1)
 			currHash := hash(uint32(x>>8), shift)
 			candidate = int(table[currHash&tableMask])
 			table[currHash&tableMask] = uint16(s)
-			if uint32(x>>8) != load32(src, candidate) {
+			if uint32(x>>8) != binary.LittleEndian.Uint32(src[candidate:]) {
 				nextHash = hash(uint32(x>>16), shift)
 				s++
 				break
@@ -157,15 +161,4 @@ emitRemainder:
 
 func hash(u, shift uint32) uint32 {
 	return (u * 0x1e35a7bd) >> shift
-}
-
-func load32(b []byte, i int) uint32 {
-	b = b[i : i+4 : len(b)] // Help the compiler eliminate bounds checks on the next line.
-	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
-}
-
-func load64(b []byte, i int) uint64 {
-	b = b[i : i+8 : len(b)] // Help the compiler eliminate bounds checks on the next line.
-	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
-		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
 }
