@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"encoding/binary"
+	"math/bits"
 
 	"github.com/andybalholm/press"
 )
@@ -112,13 +113,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 			// Invariant: we have a 4-byte match at s.
 			base := s
 
-			// Extend the 4-byte match as long as possible.
-			//
-			// This is an inlined version of:
-			//	s = extendMatch(src, candidate+4, s+4)
-			s += 4
-			for i := candidate + 4; s < len(src) && src[i] == src[s]; i, s = i+1, s+1 {
-			}
+			s = extendMatch(src, candidate+4, s+4)
 
 			dst = append(dst, press.Match{
 				Unmatched: base - nextEmit,
@@ -161,4 +156,41 @@ emitRemainder:
 
 func hash(u, shift uint32) uint32 {
 	return (u * 0x1e35a7bd) >> shift
+}
+
+// extendMatch returns the largest k such that k <= len(src) and that
+// src[i:i+k-j] and src[j:k] have the same contents.
+//
+// It assumes that:
+//	0 <= i && i < j && j <= len(src)
+func extendMatch(src []byte, i, j int) int {
+	if bits.UintSize == 64 {
+		// As long as we are 8 or more bytes before the end of src, we can load and
+		// compare 8 bytes at a time. If those 8 bytes are equal, repeat.
+		for j+8 < len(src) {
+			iBytes := binary.LittleEndian.Uint64(src[i:])
+			jBytes := binary.LittleEndian.Uint64(src[j:])
+			if iBytes != jBytes {
+				// If those 8 bytes were not equal, XOR the two 8 byte values, and return
+				// the index of the first byte that differs. The BSF instruction finds the
+				// least significant 1 bit, the amd64 architecture is little-endian, and
+				// the shift by 3 converts a bit index to a byte index.
+				return j + bits.TrailingZeros64(iBytes^jBytes)>>3
+			}
+			i, j = i+8, j+8
+		}
+	} else {
+		// On a 32-bit CPU, we do it 4 bytes at a time.
+		for j+4 < len(src) {
+			iBytes := binary.LittleEndian.Uint32(src[i:])
+			jBytes := binary.LittleEndian.Uint32(src[j:])
+			if iBytes != jBytes {
+				return j + bits.TrailingZeros32(iBytes^jBytes)>>3
+			}
+			i, j = i+4, j+4
+		}
+	}
+	for ; j < len(src) && src[i] == src[j]; i, j = i+1, j+1 {
+	}
+	return j
 }
