@@ -3,6 +3,7 @@ package snappy
 import (
 	"encoding/binary"
 	"math/bits"
+	"runtime"
 
 	"github.com/andybalholm/press"
 )
@@ -155,7 +156,8 @@ func hash(u uint32) uint32 {
 // It assumes that:
 //	0 <= i && i < j && j <= len(src)
 func extendMatch(src []byte, i, j int) int {
-	if bits.UintSize == 64 {
+	switch runtime.GOARCH {
+	case "amd64":
 		// As long as we are 8 or more bytes before the end of src, we can load and
 		// compare 8 bytes at a time. If those 8 bytes are equal, repeat.
 		for j+8 < len(src) {
@@ -170,7 +172,7 @@ func extendMatch(src []byte, i, j int) int {
 			}
 			i, j = i+8, j+8
 		}
-	} else {
+	case "386":
 		// On a 32-bit CPU, we do it 4 bytes at a time.
 		for j+4 < len(src) {
 			iBytes := binary.LittleEndian.Uint32(src[i:])
