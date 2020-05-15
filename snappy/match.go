@@ -17,6 +17,14 @@ type MatchFinder struct{}
 
 func (MatchFinder) Reset() {}
 
+const (
+	maxTableSize = 1 << 14
+	shift        = 32 - 14
+	// tableMask is redundant, but helps the compiler eliminate bounds
+	// checks.
+	tableMask = maxTableSize - 1
+)
+
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 // src must not be longer than 65536 bytes.
 func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
@@ -30,23 +38,6 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 		panic("block too long")
 	}
 
-	// Initialize the hash table. Its size ranges from 1<<8 to 1<<14 inclusive.
-	// The table element type is uint16, as s < sLimit and sLimit < len(src)
-	// and len(src) <= maxBlockSize and maxBlockSize == 65536.
-	const (
-		maxTableSize = 1 << 14
-		// tableMask is redundant, but helps the compiler eliminate bounds
-		// checks.
-		tableMask = maxTableSize - 1
-	)
-	shift := uint32(32 - 8)
-	for tableSize := 1 << 8; tableSize < maxTableSize && tableSize < len(src); tableSize *= 2 {
-		shift--
-	}
-	// In Go, all array elements are zero-initialized, so there is no advantage
-	// to a smaller tableSize per se. However, it matches the C++ algorithm,
-	// and in the asm versions of this code, we can get away with zeroing only
-	// the first tableSize elements.
 	var table [maxTableSize]uint16
 
 	// sLimit is when to stop looking for offset/length copies. The inputMargin
@@ -60,7 +51,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 	// The encoded form must start with a literal, as there are no previous
 	// bytes to copy, so we start looking for hash matches at s == 1.
 	s := 1
-	nextHash := hash(binary.LittleEndian.Uint32(src[s:]), shift)
+	nextHash := hash(binary.LittleEndian.Uint32(src[s:]))
 
 	for {
 		// Copied from the C++ snappy implementation:
@@ -92,7 +83,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 			}
 			candidate = int(table[nextHash&tableMask])
 			table[nextHash&tableMask] = uint16(s)
-			nextHash = hash(binary.LittleEndian.Uint32(src[nextS:]), shift)
+			nextHash = hash(binary.LittleEndian.Uint32(src[nextS:]))
 			if binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
 				break
 			}
@@ -132,13 +123,13 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 			// are faster as one load64 call (with some shifts) instead of
 			// three load32 calls.
 			x := binary.LittleEndian.Uint64(src[s-1:])
-			prevHash := hash(uint32(x>>0), shift)
+			prevHash := hash(uint32(x >> 0))
 			table[prevHash&tableMask] = uint16(s - 1)
-			currHash := hash(uint32(x>>8), shift)
+			currHash := hash(uint32(x >> 8))
 			candidate = int(table[currHash&tableMask])
 			table[currHash&tableMask] = uint16(s)
 			if uint32(x>>8) != binary.LittleEndian.Uint32(src[candidate:]) {
-				nextHash = hash(uint32(x>>16), shift)
+				nextHash = hash(uint32(x >> 16))
 				s++
 				break
 			}
@@ -154,7 +145,7 @@ emitRemainder:
 	return dst
 }
 
-func hash(u, shift uint32) uint32 {
+func hash(u uint32) uint32 {
 	return (u * 0x1e35a7bd) >> shift
 }
 
