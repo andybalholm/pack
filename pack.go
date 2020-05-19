@@ -1,4 +1,4 @@
-// The press package is a modular system for data compression.
+// The pack package is a modular system for data compression.
 //
 // Many compression libraries have two main parts:
 //  - Something that looks for repeated sequences of bytes
@@ -8,7 +8,7 @@
 // usually closely tied together. You can't use flate's matcher with snappy's
 // encoder, for example. This packages defines interfaces and an intermediate
 // representation to allow mixing and matching compression components.
-package press
+package pack
 
 import "io"
 

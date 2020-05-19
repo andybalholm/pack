@@ -1,4 +1,4 @@
-module github.com/andybalholm/press
+module github.com/andybalholm/pack
 
 go 1.14
 

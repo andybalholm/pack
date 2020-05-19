@@ -1,4 +1,4 @@
-package press
+package pack
 
 import "fmt"
 

@@ -4,7 +4,7 @@ import (
 	"hash/crc32"
 	"io"
 
-	"github.com/andybalholm/press"
+	"github.com/andybalholm/pack"
 )
 
 type Encoder struct{}
@@ -26,7 +26,7 @@ func (Encoder) Header(dst []byte) []byte {
 
 func (Encoder) Reset() {}
 
-func (Encoder) Encode(dst []byte, src []byte, matches []press.Match, lastBlock bool) []byte {
+func (Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock bool) []byte {
 	if len(src) > 65536 {
 		panic("block too large")
 	}
@@ -146,8 +146,8 @@ func appendUvarint(dst []byte, x uint64) []byte {
 	return append(dst, byte(x))
 }
 
-func NewWriter(dst io.Writer) *press.Writer {
-	return &press.Writer{
+func NewWriter(dst io.Writer) *pack.Writer {
+	return &pack.Writer{
 		Dest:        dst,
 		MatchFinder: MatchFinder{},
 		Encoder:     Encoder{},

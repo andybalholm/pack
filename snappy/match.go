@@ -5,14 +5,14 @@ import (
 	"math/bits"
 	"runtime"
 
-	"github.com/andybalholm/press"
+	"github.com/andybalholm/pack"
 )
 
 const inputMargin = 16 - 1
 
 const minNonLiteralBlockSize = 1 + 1 + inputMargin
 
-// MatchFinder is an implementation of the press.MatchFinder interface based
+// MatchFinder is an implementation of the pack.MatchFinder interface based
 // on the algorithm used by snappy.
 type MatchFinder struct{}
 
@@ -28,9 +28,9 @@ const (
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 // src must not be longer than 65536 bytes.
-func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
+func (MatchFinder) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	if len(src) < minNonLiteralBlockSize {
-		dst = append(dst, press.Match{
+		dst = append(dst, pack.Match{
 			Unmatched: len(src),
 		})
 		return dst
@@ -107,7 +107,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 
 			s = extendMatch(src, candidate+4, s+4)
 
-			dst = append(dst, press.Match{
+			dst = append(dst, pack.Match{
 				Unmatched: base - nextEmit,
 				Length:    s - base,
 				Distance:  base - candidate,
@@ -139,7 +139,7 @@ func (MatchFinder) FindMatches(dst []press.Match, src []byte) []press.Match {
 
 emitRemainder:
 	if nextEmit < len(src) {
-		dst = append(dst, press.Match{
+		dst = append(dst, pack.Match{
 			Unmatched: len(src) - nextEmit,
 		})
 	}
