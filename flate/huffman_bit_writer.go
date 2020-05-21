@@ -40,11 +40,6 @@ const (
 	baseMatchOffset   = 1 // The smallest match offset
 )
 
-// An InternalError reports an error in the flate code itself.
-type InternalError string
-
-func (e InternalError) Error() string { return "flate: internal error: " + string(e) }
-
 // The number of extra bits needed by length code X - LENGTH_CODES_START.
 var lengthExtraBits = []int8{
 	/* 257 */ 0, 0, 0,
@@ -520,90 +515,6 @@ func (w *huffmanBitWriter) writeTokens(matches []pack.Match, input []byte, leCod
 			w.writeBits(extraOffset, extraOffsetBits)
 		}
 		pos += m.Length
-	}
-}
-
-// huffOffset is a static offset encoder used for huffman only encoding.
-// It can be reused since we will not be encoding offset values.
-var huffOffset *huffmanEncoder
-
-func init() {
-	offsetFreq := make([]int32, offsetCodeCount)
-	offsetFreq[0] = 1
-	huffOffset = newHuffmanEncoder(offsetCodeCount)
-	huffOffset.generate(offsetFreq, 15)
-}
-
-// writeBlockHuff encodes a block of bytes as either
-// Huffman encoded literals or uncompressed bytes if the
-// results only gains very little from compression.
-func (w *huffmanBitWriter) writeBlockHuff(eof bool, input []byte) {
-	// Clear histogram
-	for i := range w.literalFreq {
-		w.literalFreq[i] = 0
-	}
-
-	// Add everything as literals
-	histogram(input, w.literalFreq)
-
-	w.literalFreq[endBlockMarker] = 1
-
-	const numLiterals = endBlockMarker + 1
-	const numOffsets = 1
-
-	w.literalEncoding.generate(w.literalFreq, 15)
-
-	// Figure out smallest code.
-	// Always use dynamic Huffman or Store
-	var numCodegens int
-
-	// Generate codegen and codegenFrequencies, which indicates how to encode
-	// the literalEncoding and the offsetEncoding.
-	w.generateCodegen(numLiterals, numOffsets, w.literalEncoding, huffOffset)
-	w.codegenEncoding.generate(w.codegenFreq[:], 7)
-	size, numCodegens := w.dynamicSize(w.literalEncoding, huffOffset, 0)
-
-	// Store bytes, if we don't get a reasonable improvement.
-	if ssize, storable := w.storedSize(input); storable && ssize < (size+size>>4) {
-		w.writeStoredHeader(len(input), eof)
-		w.writeBytes(input)
-		return
-	}
-
-	// Huffman.
-	w.writeDynamicHeader(numLiterals, numOffsets, numCodegens, eof)
-	encoding := w.literalEncoding.codes[:257]
-	for _, t := range input {
-		// Bitwriting inlined, ~30% speedup
-		c := encoding[t]
-		w.bits |= uint64(c.code) << w.nbits
-		w.nbits += uint(c.len)
-		if w.nbits < 48 {
-			continue
-		}
-		// Store 6 bytes
-		bits := w.bits
-		w.bits >>= 48
-		w.nbits -= 48
-		w.dst = append(w.dst,
-			byte(bits),
-			byte(bits>>8),
-			byte(bits>>16),
-			byte(bits>>24),
-			byte(bits>>32),
-			byte(bits>>40),
-		)
-	}
-	w.writeCode(encoding[endBlockMarker])
-}
-
-// histogram accumulates a histogram of b in h.
-//
-// len(h) must be >= 256, and h's elements must be all zeroes.
-func histogram(b []byte, h []int32) {
-	h = h[:256]
-	for _, t := range b {
-		h[t]++
 	}
 }
 
