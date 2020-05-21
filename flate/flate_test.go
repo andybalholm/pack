@@ -19,8 +19,8 @@ func TestEncode(t *testing.T) {
 	w := &pack.Writer{
 		Dest:        b,
 		MatchFinder: snappy.MatchFinder{},
-		Encoder:     newHuffmanBitWriter(),
-		BlockSize:   65535,
+		Encoder:     NewEncoder(),
+		BlockSize:   32768,
 	}
 	w.Write(opticks)
 	w.Close()

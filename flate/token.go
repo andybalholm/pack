@@ -83,14 +83,23 @@ func (t token) offset() uint32 { return uint32(t) & offsetMask }
 
 func (t token) length() uint32 { return uint32((t - matchType) >> lengthShift) }
 
-func lengthCode(len uint32) uint32 { return lengthCodes[len] }
+func lengthCode(len int) uint32 {
+	if len > 258 {
+		panic("match too long")
+	}
+	return lengthCodes[len-baseMatchLength]
+}
 
 // Returns the offset code corresponding to a specific offset
-func offsetCode(off uint32) uint32 {
-	if off < uint32(len(offsetCodes)) {
+func offsetCode(off int) uint32 {
+	if off > 32768 {
+		panic("match distance too high")
+	}
+	off -= baseMatchOffset
+	if off < len(offsetCodes) {
 		return offsetCodes[off]
 	}
-	if off>>7 < uint32(len(offsetCodes)) {
+	if off>>7 < len(offsetCodes) {
 		return offsetCodes[off>>7] + 14
 	}
 	return offsetCodes[off>>14] + 28
