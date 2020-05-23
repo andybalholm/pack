@@ -4,6 +4,8 @@
 
 package flate
 
+import "log"
+
 // The length code for length X (MIN_MATCH_LENGTH <= X <= MAX_MATCH_LENGTH)
 // is lengthCodes[length - MIN_MATCH_LENGTH]
 var lengthCodes = [...]uint32{
@@ -64,6 +66,7 @@ func lengthCode(len int) uint32 {
 // Returns the offset code corresponding to a specific offset
 func offsetCode(off int) uint32 {
 	if off > 32768 {
+		log.Println(off)
 		panic("match distance too high")
 	}
 	off -= baseMatchOffset
