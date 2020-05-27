@@ -45,9 +45,17 @@ const minNonLiteralBlockSize = 1 + 1 + inputMargin
 type QuickMatchFinder struct {
 	MaxDistance int
 	MaxLength   int
+
+	ChainBlocks bool // Should it find matches in the previous block?
+
+	table     [maxTableSize]uint32
+	prevBlock []byte
 }
 
-func (*QuickMatchFinder) Reset() {}
+func (q *QuickMatchFinder) Reset() {
+	q.table = [maxTableSize]uint32{}
+	q.prevBlock = q.prevBlock[:0]
+}
 
 const (
 	maxTableSize = 1 << 14
@@ -66,8 +74,6 @@ func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		})
 		return dst
 	}
-
-	var table [maxTableSize]uint32
 
 	// sLimit is when to stop looking for offset/length copies. The inputMargin
 	// lets us use a fast path for emitLiteral in the main loop, while we are
@@ -110,11 +116,19 @@ func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 			if nextS > sLimit {
 				goto emitRemainder
 			}
-			candidate = int(table[nextHash&tableMask])
-			table[nextHash&tableMask] = uint32(s)
+			candidate = int(q.table[nextHash&tableMask])
+			q.table[nextHash&tableMask] = uint32(s)
 			nextHash = hash(binary.LittleEndian.Uint32(src[nextS:]))
-			if s-candidate <= q.MaxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
-				break
+			if candidate == 0 {
+				continue
+			} else if candidate < s {
+				if s-candidate <= q.MaxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
+					break
+				}
+			} else if q.ChainBlocks && candidate < len(q.prevBlock)-3 {
+				if s+len(q.prevBlock)-candidate <= q.MaxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(q.prevBlock[candidate:]) {
+					break
+				}
 			}
 		}
 
@@ -133,7 +147,12 @@ func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 			// Invariant: we have a 4-byte match at s.
 			base := s
 
-			s = extendMatch(src, candidate+4, s+4)
+			if candidate < s {
+				s = extendMatch(src, candidate+4, s+4)
+			} else {
+				s = extendMatch2(q.prevBlock, candidate+4, src, s+4)
+				candidate -= len(q.prevBlock)
+			}
 
 			for s-base > q.MaxLength {
 				// The match is too long; break it up into shorter matches.
@@ -169,15 +188,24 @@ func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 			// three load32 calls.
 			x := binary.LittleEndian.Uint64(src[s-1:])
 			prevHash := hash(uint32(x >> 0))
-			table[prevHash&tableMask] = uint32(s - 1)
+			q.table[prevHash&tableMask] = uint32(s - 1)
 			currHash := hash(uint32(x >> 8))
-			candidate = int(table[currHash&tableMask])
-			table[currHash&tableMask] = uint32(s)
-			if s-candidate > q.MaxDistance || uint32(x>>8) != binary.LittleEndian.Uint32(src[candidate:]) {
-				nextHash = hash(uint32(x >> 16))
-				s++
-				break
+			candidate = int(q.table[currHash&tableMask])
+			q.table[currHash&tableMask] = uint32(s)
+			if candidate == 0 {
+				// Do nothing.
+			} else if candidate < s {
+				if s-candidate <= q.MaxDistance && uint32(x>>8) == binary.LittleEndian.Uint32(src[candidate:]) {
+					continue
+				}
+			} else if q.ChainBlocks && candidate < len(q.prevBlock)-3 {
+				if s+len(q.prevBlock)-candidate <= q.MaxDistance && uint32(x>>8) == binary.LittleEndian.Uint32(q.prevBlock[candidate:]) {
+					continue
+				}
 			}
+			nextHash = hash(uint32(x >> 16))
+			s++
+			break
 		}
 	}
 
@@ -186,6 +214,9 @@ emitRemainder:
 		dst = append(dst, Match{
 			Unmatched: len(src) - nextEmit,
 		})
+	}
+	if q.ChainBlocks {
+		q.prevBlock = append(q.prevBlock[:0], src...)
 	}
 	return dst
 }
@@ -228,6 +259,41 @@ func extendMatch(src []byte, i, j int) int {
 		}
 	}
 	for ; j < len(src) && src[i] == src[j]; i, j = i+1, j+1 {
+	}
+	return j
+}
+
+// extendMatch2 returns the largest k such that src1[i:i+k-j] and src2[j:k]
+// have the same contents (and all these indexes are valid).
+func extendMatch2(src1 []byte, i int, src2 []byte, j int) int {
+	switch runtime.GOARCH {
+	case "amd64":
+		// As long as we are 8 or more bytes before the end of src, we can load and
+		// compare 8 bytes at a time. If those 8 bytes are equal, repeat.
+		for i+8 < len(src1) && j+8 < len(src2) {
+			iBytes := binary.LittleEndian.Uint64(src1[i:])
+			jBytes := binary.LittleEndian.Uint64(src2[j:])
+			if iBytes != jBytes {
+				// If those 8 bytes were not equal, XOR the two 8 byte values, and return
+				// the index of the first byte that differs. The BSF instruction finds the
+				// least significant 1 bit, the amd64 architecture is little-endian, and
+				// the shift by 3 converts a bit index to a byte index.
+				return j + bits.TrailingZeros64(iBytes^jBytes)>>3
+			}
+			i, j = i+8, j+8
+		}
+	case "386":
+		// On a 32-bit CPU, we do it 4 bytes at a time.
+		for i+4 < len(src1) && j+4 < len(src2) {
+			iBytes := binary.LittleEndian.Uint32(src1[i:])
+			jBytes := binary.LittleEndian.Uint32(src2[j:])
+			if iBytes != jBytes {
+				return j + bits.TrailingZeros32(iBytes^jBytes)>>3
+			}
+			i, j = i+4, j+4
+		}
+	}
+	for ; i < len(src1) && j < len(src2) && src1[i] == src2[j]; i, j = i+1, j+1 {
 	}
 	return j
 }

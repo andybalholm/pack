@@ -21,9 +21,10 @@ func TestEncode(t *testing.T) {
 		MatchFinder: &pack.QuickMatchFinder{
 			MaxDistance: 32768,
 			MaxLength:   258,
+			ChainBlocks: true,
 		},
 		Encoder:   NewEncoder(),
-		BlockSize: 1 << 19,
+		BlockSize: 1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -81,6 +82,7 @@ func BenchmarkEncode(b *testing.B) {
 		MatchFinder: &pack.QuickMatchFinder{
 			MaxDistance: 32768,
 			MaxLength:   258,
+			ChainBlocks: true,
 		},
 		Encoder:   NewEncoder(),
 		BlockSize: 1 << 20,
