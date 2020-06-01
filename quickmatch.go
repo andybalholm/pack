@@ -38,9 +38,7 @@ import (
 
 const inputMargin = 16 - 1
 
-const minNonLiteralBlockSize = 1 + 1 + inputMargin
-
-// MatchFinder is an implementation of the MatchFinder interface based
+// QuickMatchFinder is an implementation of the MatchFinder interface based
 // on the algorithm used by snappy.
 type QuickMatchFinder struct {
 	MaxDistance int
@@ -66,15 +64,7 @@ const (
 )
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
-// src must not be longer than 65536 bytes.
 func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
-	if len(src) < minNonLiteralBlockSize {
-		dst = append(dst, Match{
-			Unmatched: len(src),
-		})
-		return dst
-	}
-
 	// sLimit is when to stop looking for offset/length copies. The inputMargin
 	// lets us use a fast path for emitLiteral in the main loop, while we are
 	// looking for copies.
