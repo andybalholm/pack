@@ -36,8 +36,6 @@ import (
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 //OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-const inputMargin = 16 - 1
-
 // QuickMatchFinder is an implementation of the MatchFinder interface based
 // on the algorithm used by snappy.
 type QuickMatchFinder struct {
@@ -65,10 +63,9 @@ const (
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
-	// sLimit is when to stop looking for offset/length copies. The inputMargin
-	// lets us use a fast path for emitLiteral in the main loop, while we are
-	// looking for copies.
-	sLimit := len(src) - inputMargin
+	// sLimit is when to stop looking for offset/length copies. The input margin
+	// gives us room to use a 64-bit load for hashing.
+	sLimit := len(src) - 8
 
 	// nextEmit is where in src the next emitLiteral should start from.
 	nextEmit := 0
@@ -77,6 +74,10 @@ func (q *QuickMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 	// bytes to copy, so we start looking for hash matches at s == 1.
 	s := 1
 	nextHash := hash(binary.LittleEndian.Uint32(src[s:]))
+
+	if s > sLimit {
+		goto emitRemainder
+	}
 
 	for {
 		// Copied from the C++ snappy implementation:
