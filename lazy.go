@@ -34,6 +34,12 @@ import (
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 //OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+const (
+	lazyTableSize = 1 << 16
+	lazyShift     = 32 - 16
+	lazyTableMask = lazyTableSize - 1
+)
+
 // LazyMatchFinder is an implementation of the MatchFinder interface that does
 // lazy matching
 type LazyMatchFinder struct {
@@ -42,12 +48,12 @@ type LazyMatchFinder struct {
 
 	ChainBlocks bool // Should it find matches in the previous block?
 
-	table     [maxTableSize]uint32
+	table     [lazyTableSize]uint32
 	prevBlock []byte
 }
 
 func (q *LazyMatchFinder) Reset() {
-	q.table = [maxTableSize]uint32{}
+	q.table = [lazyTableSize]uint32{}
 	q.prevBlock = q.prevBlock[:0]
 }
 
@@ -90,15 +96,15 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		candidate := 0
 		for {
 			s = nextS
-			nextHash := hash(binary.LittleEndian.Uint32(src[s:]))
+			nextHash := lazyHash(binary.LittleEndian.Uint32(src[s:]))
 			bytesBetweenHashLookups := skip >> 5
 			nextS = s + bytesBetweenHashLookups
 			skip += bytesBetweenHashLookups
 			if nextS > sLimit {
 				goto emitRemainder
 			}
-			candidate = int(q.table[nextHash&tableMask])
-			q.table[nextHash&tableMask] = uint32(s)
+			candidate = int(q.table[nextHash&lazyTableMask])
+			q.table[nextHash&lazyTableMask] = uint32(s)
 			if candidate == 0 {
 				continue
 			} else if candidate < s {
@@ -127,8 +133,8 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 
 		// See if we can find a longer match using an 8-byte hash.
 		h := hash8(binary.LittleEndian.Uint64(src[base:]))
-		candidate8 := int(q.table[h&tableMask])
-		q.table[h&tableMask] = uint32(base)
+		candidate8 := int(q.table[h&lazyTableMask])
+		q.table[h&lazyTableMask] = uint32(base)
 		switch {
 		case candidate8 == 0:
 			// Do nothing.
@@ -156,8 +162,8 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		if base+1 < sLimit {
 			i := base + 1
 			h := hash8(binary.LittleEndian.Uint64(src[i:]))
-			lazyCandidate := int(q.table[h&tableMask])
-			q.table[h&tableMask] = uint32(i)
+			lazyCandidate := int(q.table[h&lazyTableMask])
+			q.table[h&lazyTableMask] = uint32(i)
 			switch {
 			case lazyCandidate == 0:
 				// Do nothing.
@@ -212,8 +218,8 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		// compression we first update the hash table.
 		for i := origBase; i < s; i++ {
 			x := binary.LittleEndian.Uint32(src[i:])
-			h := hash(x)
-			q.table[h&tableMask] = uint32(i)
+			h := lazyHash(x)
+			q.table[h&lazyTableMask] = uint32(i)
 		}
 	}
 
@@ -230,5 +236,9 @@ emitRemainder:
 }
 
 func hash8(u uint64) uint32 {
-	return uint32((u * 0x1FE35A7BD3579BD3) >> (shift + 32))
+	return uint32((u * 0x1FE35A7BD3579BD3) >> (lazyShift + 32))
+}
+
+func lazyHash(u uint32) uint32 {
+	return (u * 0x1e35a7bd) >> lazyShift
 }
