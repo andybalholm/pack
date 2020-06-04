@@ -35,13 +35,13 @@ import (
 //OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 const (
-	lazyTableSize = 1 << 16
-	lazyShift     = 32 - 16
+	lazyTableSize = 1 << 18
+	lazyShift     = 32 - 18
 	lazyTableMask = lazyTableSize - 1
 )
 
 // LazyMatchFinder is an implementation of the MatchFinder interface that does
-// lazy matching
+// lazy matching and uses two hash lengths (4-byte and 8-byte).
 type LazyMatchFinder struct {
 	MaxDistance int
 	MaxLength   int
@@ -173,9 +173,9 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		// We could immediately start working at s now, but to improve
 		// compression we first update the hash table.
 		for i := origBase + 1; i < s; i++ {
-			x := binary.LittleEndian.Uint32(src[i:])
-			h := lazyHash(x)
-			q.table[h&lazyTableMask] = uint32(i)
+			x := binary.LittleEndian.Uint64(src[i:])
+			q.table[lazyHash(uint32(x))&lazyTableMask] = uint32(i)
+			q.table[hash8(x)&lazyTableMask] = uint32(i)
 		}
 	}
 
