@@ -212,8 +212,10 @@ emitRemainder:
 	return dst
 }
 
+const hashMul32 = 0x1e35a7bd
+
 func hash(u uint32) uint32 {
-	return (u * 0x1e35a7bd) >> shift
+	return (u * hashMul32) >> shift
 }
 
 // extendMatch returns the largest k such that k <= len(src) and that
