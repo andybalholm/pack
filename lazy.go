@@ -96,16 +96,24 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		var match, matchLen int
 		for {
 			s = nextS
-			nextHash := lazyHash(binary.LittleEndian.Uint32(src[s:]))
 			bytesBetweenHashLookups := skip >> 5
 			nextS = s + bytesBetweenHashLookups
 			skip += bytesBetweenHashLookups
 			if nextS > sLimit {
 				goto emitRemainder
 			}
-			candidate := int(q.table[nextHash&lazyTableMask])
-			q.table[nextHash&lazyTableMask] = uint32(s)
+			x := binary.LittleEndian.Uint64(src[s:])
+			h := lazyHash(uint32(x)) & lazyTableMask
+			h8 := hash8(x) & lazyTableMask
+			candidate := int(q.table[h])
+			candidate8 := int(q.table[h8])
+			q.table[h] = uint32(s)
+			q.table[h8] = uint32(s)
 			match, matchLen = q.checkMatch(src, s, candidate)
+			match8, len8 := q.checkMatch(src, s, candidate8)
+			if len8 > matchLen {
+				match, matchLen = match8, len8
+			}
 			if matchLen >= 4 {
 				break
 			}
@@ -115,17 +123,6 @@ func (q *LazyMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		// The location and length of the match are in match and matchLen.
 
 		base := s
-
-		// See if we can find a longer match using an 8-byte hash.
-		h := hash8(binary.LittleEndian.Uint64(src[base:]))
-		candidate8 := int(q.table[h&lazyTableMask])
-		q.table[h&lazyTableMask] = uint32(base)
-		match8, matchLen8 := q.checkMatch(src, base, candidate8)
-		if matchLen8 > matchLen {
-			match = match8
-			matchLen = matchLen8
-		}
-
 		origBase := base
 
 		// Now try lazy matching.
