@@ -31,9 +31,6 @@ type MatchFinder interface {
 
 // An Encoder encodes the data in its final format.
 type Encoder interface {
-	// Header appends the appropriate stream header to dst.
-	Header(dst []byte) []byte
-
 	// Encode appends the encoded format of src to dst, using the match
 	// information from matches.
 	Encode(dst []byte, src []byte, matches []Match, lastBlock bool) []byte
@@ -53,11 +50,10 @@ type Writer struct {
 	// each Write operation will be treated as one block.
 	BlockSize int
 
-	wroteHeader bool
-	err         error
-	inBuf       []byte
-	outBuf      []byte
-	matches     []Match
+	err     error
+	inBuf   []byte
+	outBuf  []byte
+	matches []Match
 }
 
 func (w *Writer) Write(p []byte) (n int, err error) {
@@ -84,10 +80,6 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 
 func (w *Writer) writeBlock(p []byte, lastBlock bool) (n int, err error) {
 	w.outBuf = w.outBuf[:0]
-	if !w.wroteHeader {
-		w.outBuf = w.Encoder.Header(w.outBuf)
-		w.wroteHeader = true
-	}
 	w.matches = w.MatchFinder.FindMatches(w.matches[:0], p)
 	w.outBuf = w.Encoder.Encode(w.outBuf, p, w.matches, lastBlock)
 	_, w.err = w.Dest.Write(w.outBuf)
@@ -101,7 +93,6 @@ func (w *Writer) Close() error {
 }
 
 func (w *Writer) Reset(newDest io.Writer) {
-	w.wroteHeader = false
 	w.err = nil
 	w.inBuf = w.inBuf[:0]
 	w.outBuf = w.outBuf[:0]

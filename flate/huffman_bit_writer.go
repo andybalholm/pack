@@ -518,19 +518,13 @@ func (w *huffmanBitWriter) writeTokens(matches []pack.Match, input []byte, leCod
 	}
 }
 
-func (*huffmanBitWriter) Header(dst []byte) []byte {
-	return dst
-}
-
 func (w *huffmanBitWriter) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock bool) []byte {
 	w.dst = dst
 
 	w.writeBlock(matches, lastBlock, src)
-	if w.nbits&7 != 0 && !lastBlock {
-		// Align to a byte boundary.
-		w.writeStoredHeader(0, false)
+	if lastBlock {
+		w.flush()
 	}
-	w.flush()
 
 	dst = w.dst
 	w.dst = nil

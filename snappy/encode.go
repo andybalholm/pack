@@ -7,7 +7,9 @@ import (
 	"github.com/andybalholm/pack"
 )
 
-type Encoder struct{}
+type Encoder struct {
+	wroteHeader bool
+}
 
 var magicChunk = []byte("\xff\x06\x00\x00sNaPpY")
 
@@ -20,16 +22,20 @@ func crc(b []byte) uint32 {
 	return uint32(c>>15|c<<17) + 0xa282ead8
 }
 
-func (Encoder) Header(dst []byte) []byte {
-	return append(dst, magicChunk...)
+func (e *Encoder) Reset() {
+	e.wroteHeader = false
 }
 
-func (Encoder) Reset() {}
-
-func (Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock bool) []byte {
+func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock bool) []byte {
 	if len(src) > 65536 {
 		panic("block too large")
 	}
+
+	if !e.wroteHeader {
+		dst = append(dst, magicChunk...)
+		e.wroteHeader = true
+	}
+
 	start := len(dst)
 	checksum := crc(src)
 
@@ -150,7 +156,7 @@ func NewWriter(dst io.Writer) *pack.Writer {
 	return &pack.Writer{
 		Dest:        dst,
 		MatchFinder: MatchFinder{},
-		Encoder:     Encoder{},
+		Encoder:     &Encoder{},
 		BlockSize:   65536,
 	}
 }
