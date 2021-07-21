@@ -38,6 +38,38 @@ func TestEncode(t *testing.T) {
 	}
 }
 
+func TestReset(t *testing.T) {
+	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := new(bytes.Buffer)
+	w := &pack.Writer{
+		Dest: ioutil.Discard,
+		MatchFinder: &pack.QuickMatchFinder{
+			MaxDistance: 32768,
+			MaxLength:   258,
+			ChainBlocks: true,
+		},
+		Encoder:   &Encoder{},
+		BlockSize: 1 << 16,
+	}
+	w.Write(opticks)
+	w.Close()
+	w.Reset(b)
+	w.Write(opticks)
+	w.Close()
+	compressed := b.Bytes()
+	sr := brotli.NewReader(bytes.NewReader(compressed))
+	decompressed, err := ioutil.ReadAll(sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decompressed, opticks) {
+		t.Fatal("decompressed output doesn't match")
+	}
+}
+
 func TestEncodeHelloHello(t *testing.T) {
 	hello := []byte("HelloHelloHelloHelloHelloHelloHelloHelloHelloHello, world")
 	b := new(bytes.Buffer)

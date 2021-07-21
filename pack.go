@@ -93,6 +93,8 @@ func (w *Writer) Close() error {
 }
 
 func (w *Writer) Reset(newDest io.Writer) {
+	w.MatchFinder.Reset()
+	w.Encoder.Reset()
 	w.err = nil
 	w.inBuf = w.inBuf[:0]
 	w.outBuf = w.outBuf[:0]
