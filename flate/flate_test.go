@@ -18,14 +18,10 @@ func TestEncode(t *testing.T) {
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: b,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   NewEncoder(),
-		BlockSize: 1 << 16,
+		Dest:        b,
+		MatchFinder: &BestSpeed{},
+		Encoder:     NewEncoder(),
+		BlockSize:   1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -76,14 +72,10 @@ func TestGZIP(t *testing.T) {
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: b,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   NewGZIPEncoder(),
-		BlockSize: 1 << 16,
+		Dest:        b,
+		MatchFinder: &BestSpeed{},
+		Encoder:     NewGZIPEncoder(),
+		BlockSize:   1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -140,14 +132,10 @@ func BenchmarkEncode(b *testing.B) {
 	b.SetBytes(int64(len(opticks)))
 	buf := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: buf,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   NewEncoder(),
-		BlockSize: 1 << 20,
+		Dest:        buf,
+		MatchFinder: &BestSpeed{},
+		Encoder:     NewEncoder(),
+		BlockSize:   1 << 20,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -202,14 +190,10 @@ func BenchmarkGZIP(b *testing.B) {
 	b.SetBytes(int64(len(opticks)))
 	buf := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: buf,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   NewGZIPEncoder(),
-		BlockSize: 1 << 20,
+		Dest:        buf,
+		MatchFinder: &BestSpeed{},
+		Encoder:     NewGZIPEncoder(),
+		BlockSize:   1 << 20,
 	}
 	w.Write(opticks)
 	w.Close()
