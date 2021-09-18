@@ -7,6 +7,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/andybalholm/pack"
+	"github.com/andybalholm/pack/flate"
 )
 
 func TestEncode(t *testing.T) {
@@ -16,14 +17,10 @@ func TestEncode(t *testing.T) {
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: b,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   &Encoder{},
-		BlockSize: 1 << 16,
+		Dest:        b,
+		MatchFinder: &flate.BestSpeed{},
+		Encoder:     &Encoder{},
+		BlockSize:   1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -45,14 +42,10 @@ func TestReset(t *testing.T) {
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: ioutil.Discard,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   &Encoder{},
-		BlockSize: 1 << 16,
+		Dest:        ioutil.Discard,
+		MatchFinder: &flate.BestSpeed{},
+		Encoder:     &Encoder{},
+		BlockSize:   1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -74,14 +67,10 @@ func TestEncodeHelloHello(t *testing.T) {
 	hello := []byte("HelloHelloHelloHelloHelloHelloHelloHelloHelloHello, world")
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest: b,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
-		},
-		Encoder:   &Encoder{},
-		BlockSize: 1 << 16,
+		Dest:        b,
+		MatchFinder: &flate.BestSpeed{},
+		Encoder:     &Encoder{},
+		BlockSize:   1 << 16,
 	}
 	w.Write(hello)
 	w.Close()
@@ -107,11 +96,36 @@ func BenchmarkEncode(b *testing.B) {
 	b.SetBytes(int64(len(opticks)))
 	buf := new(bytes.Buffer)
 	w := &pack.Writer{
+		Dest:        buf,
+		MatchFinder: &flate.BestSpeed{},
+		Encoder:     &Encoder{},
+		BlockSize:   1 << 20,
+	}
+	w.Write(opticks)
+	w.Close()
+	b.ReportMetric(float64(len(opticks))/float64(buf.Len()), "ratio")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		w.Reset(ioutil.Discard)
+		w.Write(opticks)
+		w.Close()
+	}
+}
+
+func BenchmarkEncodeDualHashLazy(b *testing.B) {
+	b.StopTimer()
+	b.ReportAllocs()
+	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.SetBytes(int64(len(opticks)))
+	buf := new(bytes.Buffer)
+	w := &pack.Writer{
 		Dest: buf,
-		MatchFinder: &pack.QuickMatchFinder{
-			MaxDistance: 32768,
-			MaxLength:   258,
-			ChainBlocks: true,
+		MatchFinder: &flate.DualHash{
+			Lazy: true,
 		},
 		Encoder:   &Encoder{},
 		BlockSize: 1 << 20,
