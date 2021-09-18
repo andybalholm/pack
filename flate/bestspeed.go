@@ -51,8 +51,8 @@ func (q *BestSpeed) Reset() {
 }
 
 const (
-	maxTableSize = 1 << 14
-	shift        = 32 - 14
+	maxTableSize = 1 << 16
+	shift        = 32 - 16
 	// tableMask is redundant, but helps the compiler eliminate bounds
 	// checks.
 	tableMask = maxTableSize - 1
