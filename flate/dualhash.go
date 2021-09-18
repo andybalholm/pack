@@ -116,6 +116,7 @@ func (q *DualHash) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		// We have found a match of at least 4 bytes at s.
 		// The location and length of the match are in match and matchLen.
 		base := s
+		origBase := base
 
 		if q.Lazy && base+1 < sLimit {
 			i := base + 1
@@ -159,11 +160,13 @@ func (q *DualHash) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		}
 
 		// We could immediately start working at s now, but to improve
-		// compression we first update the hash table at s-1.
-		i := s - 1
-		x := binary.LittleEndian.Uint64(src[i:])
-		q.table[hash(uint32(x))&tableMask] = uint32(i)
-		q.table[hash8(x)&tableMask] = uint32(i)
+		// compression we first update the hash table.
+		// Hashing at only every other byte is a significant speedup.
+		for i := origBase + 1; i < s; i += 2 {
+			x := binary.LittleEndian.Uint64(src[i:])
+			q.table[hash(uint32(x))&tableMask] = uint32(i)
+			q.table[hash8(x)&tableMask] = uint32(i)
+		}
 	}
 
 emitRemainder:
