@@ -6,6 +6,7 @@ import "github.com/andybalholm/pack"
 type Encoder struct {
 	wroteHeader bool
 	bw          bitWriter
+	distCache   []distanceCode
 }
 
 func (e *Encoder) Reset() {
@@ -27,10 +28,14 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 	commandCount := 0
 	distanceCount := 0
 
+	if len(e.distCache) < len(matches) {
+		e.distCache = make([]distanceCode, len(matches))
+	}
+
 	// first pass: build the histograms
 	pos := 0
 	lastDistance := -1
-	for _, m := range matches {
+	for i, m := range matches {
 		if m.Unmatched > 0 {
 			for _, c := range src[pos : pos+m.Unmatched] {
 				literalHisto[c]++
@@ -49,8 +54,9 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 		commandCount++
 
 		if command >= 128 && m.Length != 0 {
-			distCode, _, _ := getDistanceCode(m.Distance)
-			distanceHisto[distCode]++
+			distCode := getDistanceCode(m.Distance)
+			e.distCache[i] = distCode
+			distanceHisto[distCode.code]++
 			distanceCount++
 		}
 
@@ -75,7 +81,7 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 
 	pos = 0
 	lastDistance = -1
-	for _, m := range matches {
+	for i, m := range matches {
 		insertCode := getInsertLengthCode(uint(m.Unmatched))
 		copyCode := getCopyLengthCode(uint(m.Length))
 		if m.Length == 0 {
@@ -98,10 +104,10 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 		}
 
 		if command >= 128 && m.Length != 0 {
-			distCode, nExtra, extraBits := getDistanceCode(m.Distance)
-			e.bw.writeBits(uint(distanceDepths[distCode]), uint64(distanceBits[distCode]))
-			if nExtra > 0 {
-				e.bw.writeBits(nExtra, extraBits)
+			distCode := e.distCache[i]
+			e.bw.writeBits(uint(distanceDepths[distCode.code]), uint64(distanceBits[distCode.code]))
+			if distCode.nExtra > 0 {
+				e.bw.writeBits(distCode.nExtra, distCode.extraBits)
 			}
 		}
 
@@ -116,12 +122,18 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 	return e.bw.dst
 }
 
-func getDistanceCode(distance int) (code int, nExtra uint, extraBits uint64) {
+type distanceCode struct {
+	code      int
+	nExtra    uint
+	extraBits uint64
+}
+
+func getDistanceCode(distance int) distanceCode {
 	d := distance + 3
 	nbits := log2FloorNonZero(uint(d)) - 1
 	prefix := (d >> nbits) & 1
 	offset := (2 + prefix) << nbits
 	distcode := int(2*(nbits-1)) + prefix + 16
 	extra := d - offset
-	return distcode, uint(nbits), uint64(extra)
+	return distanceCode{distcode, uint(nbits), uint64(extra)}
 }
