@@ -34,7 +34,9 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 
 	// first pass: build the histograms
 	pos := 0
-	lastDistance := -1
+
+	// d is the ring buffer of the last 4 distances.
+	d := [4]int{-10, -10, -10, -10}
 	for i, m := range matches {
 		if m.Unmatched > 0 {
 			for _, c := range src[pos : pos+m.Unmatched] {
@@ -49,18 +51,47 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 			// If the stream ends with unmatched bytes, we need a dummy copy length.
 			copyCode = 2
 		}
-		command := combineLengthCodes(insertCode, copyCode, false && lastDistance == m.Distance)
+		command := combineLengthCodes(insertCode, copyCode, false)
 		commandHisto[command]++
 		commandCount++
 
 		if command >= 128 && m.Length != 0 {
-			distCode := getDistanceCode(m.Distance)
+			var distCode distanceCode
+			switch m.Distance {
+			case d[3]:
+				distCode.code = 0
+			case d[2]:
+				distCode.code = 1
+			case d[1]:
+				distCode.code = 2
+			case d[0]:
+				distCode.code = 3
+			case d[3] - 1:
+				distCode.code = 4
+			case d[3] + 1:
+				distCode.code = 5
+			case d[3] - 2:
+				distCode.code = 6
+			case d[3] + 2:
+				distCode.code = 7
+			case d[3] - 3:
+				distCode.code = 8
+			case d[3] + 3:
+				distCode.code = 9
+
+				// In my testing, codes 10–15 actually reduced the compression ratio.
+
+			default:
+				distCode = getDistanceCode(m.Distance)
+			}
 			e.distCache[i] = distCode
 			distanceHisto[distCode.code]++
 			distanceCount++
+			if distCode.code != 0 {
+				d[0], d[1], d[2], d[3] = d[1], d[2], d[3], m.Distance
+			}
 		}
 
-		lastDistance = m.Distance
 		pos += m.Unmatched + m.Length
 	}
 
@@ -80,7 +111,6 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 	buildAndStoreHuffmanTreeFast(distanceHisto[:], uint(distanceCount), 6, distanceDepths[:], distanceBits[:], &e.bw)
 
 	pos = 0
-	lastDistance = -1
 	for i, m := range matches {
 		insertCode := getInsertLengthCode(uint(m.Unmatched))
 		copyCode := getCopyLengthCode(uint(m.Length))
@@ -88,7 +118,7 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 			// If the stream ends with unmatched bytes, we need a dummy copy length.
 			copyCode = 2
 		}
-		command := combineLengthCodes(insertCode, copyCode, false && lastDistance == m.Distance)
+		command := combineLengthCodes(insertCode, copyCode, false)
 		e.bw.writeBits(uint(commandDepths[command]), uint64(commandBits[command]))
 		if kInsExtra[insertCode] > 0 {
 			e.bw.writeBits(uint(kInsExtra[insertCode]), uint64(m.Unmatched)-uint64(kInsBase[insertCode]))
@@ -111,7 +141,6 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 			}
 		}
 
-		lastDistance = m.Distance
 		pos += m.Unmatched + m.Length
 	}
 
