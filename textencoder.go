@@ -6,10 +6,6 @@ import "fmt"
 // the LZ77 compression. Matches are replaced with <Length,Distance> symbols.
 type TextEncoder struct{}
 
-func (t TextEncoder) Header(dst []byte) []byte {
-	return dst
-}
-
 func (t TextEncoder) Reset() {}
 
 func (t TextEncoder) Encode(dst []byte, src []byte, matches []Match, lastBlock bool) []byte {
@@ -28,4 +24,17 @@ func (t TextEncoder) Encode(dst []byte, src []byte, matches []Match, lastBlock b
 		dst = append(dst, src[pos:]...)
 	}
 	return dst
+}
+
+// A NoMatchFinder implements MatchFinder, but doesn't find any matches.
+// It can be used to implement the equivalent of the standard library flate package's
+// HuffmanOnly setting.
+type NoMatchFinder struct{}
+
+func (n NoMatchFinder) Reset() {}
+
+func (n NoMatchFinder) FindMatches(dst []Match, src []byte) []Match {
+	return append(dst, Match{
+		Unmatched: len(src),
+	})
 }
