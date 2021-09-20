@@ -38,3 +38,16 @@ func (n NoMatchFinder) FindMatches(dst []Match, src []byte) []Match {
 		Unmatched: len(src),
 	})
 }
+
+// AutoReset wraps a MatchFinder that can return references to data in previous
+// blocks, and calls Reset before each block. It is useful for (e.g.) using a
+// snappy Encoder with a MatchFinder designed for flate. (Snappy doesn't
+// support references between blocks.)
+type AutoReset struct {
+	MatchFinder
+}
+
+func (a AutoReset) FindMatches(dst []Match, src []byte) []Match {
+	a.Reset()
+	return a.MatchFinder.FindMatches(dst, src)
+}
