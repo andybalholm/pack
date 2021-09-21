@@ -10,19 +10,19 @@ import (
 	"github.com/andybalholm/pack/flate"
 )
 
-func TestEncode(t *testing.T) {
-	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+func test(t *testing.T, filename string, m pack.MatchFinder, blockSize int) {
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
 		Dest:        b,
-		MatchFinder: &flate.BestSpeed{},
+		MatchFinder: m,
 		Encoder:     &Encoder{},
-		BlockSize:   1 << 16,
+		BlockSize:   blockSize,
 	}
-	w.Write(opticks)
+	w.Write(data)
 	w.Close()
 	compressed := b.Bytes()
 	sr := brotli.NewReader(bytes.NewReader(compressed))
@@ -30,9 +30,17 @@ func TestEncode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(decompressed, opticks) {
+	if !bytes.Equal(decompressed, data) {
 		t.Fatal("decompressed output doesn't match")
 	}
+}
+
+func TestEncode(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<16)
+}
+
+func TestEncodeH4(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H4{}}, 1<<16)
 }
 
 func TestReset(t *testing.T) {
@@ -85,58 +93,41 @@ func TestEncodeHelloHello(t *testing.T) {
 	}
 }
 
-func BenchmarkEncode(b *testing.B) {
+func benchmark(b *testing.B, filename string, m pack.MatchFinder, blockSize int) {
 	b.StopTimer()
 	b.ReportAllocs()
-	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	b.SetBytes(int64(len(opticks)))
+	b.SetBytes(int64(len(data)))
 	buf := new(bytes.Buffer)
 	w := &pack.Writer{
 		Dest:        buf,
-		MatchFinder: &flate.BestSpeed{},
+		MatchFinder: m,
 		Encoder:     &Encoder{},
-		BlockSize:   1 << 20,
+		BlockSize:   blockSize,
 	}
-	w.Write(opticks)
+	w.Write(data)
 	w.Close()
-	b.ReportMetric(float64(len(opticks))/float64(buf.Len()), "ratio")
+	b.ReportMetric(float64(len(data))/float64(buf.Len()), "ratio")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		w.Reset(ioutil.Discard)
-		w.Write(opticks)
+		w.Write(data)
 		w.Close()
 	}
 }
 
-func BenchmarkEncodeDualHashLazy(b *testing.B) {
-	b.StopTimer()
-	b.ReportAllocs()
-	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
-	if err != nil {
-		b.Fatal(err)
-	}
+func BenchmarkEncode(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<20)
+}
 
-	b.SetBytes(int64(len(opticks)))
-	buf := new(bytes.Buffer)
-	w := &pack.Writer{
-		Dest: buf,
-		MatchFinder: &flate.DualHash{
-			Lazy: true,
-		},
-		Encoder:   &Encoder{},
-		BlockSize: 1 << 20,
-	}
-	w.Write(opticks)
-	w.Close()
-	b.ReportMetric(float64(len(opticks))/float64(buf.Len()), "ratio")
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		w.Reset(ioutil.Discard)
-		w.Write(opticks)
-		w.Close()
-	}
+func BenchmarkEncodeDualHashLazy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.DualHash{Lazy: true}, 1<<20)
+}
+
+func BenchmarkEncodeH4(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H4{}}, 1<<20)
 }
