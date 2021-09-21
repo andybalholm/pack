@@ -78,7 +78,6 @@ func (q *MatchFinder) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	// bytes to copy, so we start looking for hash matches at s == 1.
 	s := 1
 	prevDistance := 0
-	_ = prevDistance
 
 	if s > sLimit {
 		goto emitRemainder

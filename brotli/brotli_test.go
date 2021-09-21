@@ -39,6 +39,14 @@ func TestEncode(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<16)
 }
 
+func TestEncodeH2(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H2{}}, 1<<16)
+}
+
+func TestEncodeH3(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H3{}}, 1<<16)
+}
+
 func TestEncodeH4(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H4{}}, 1<<16)
 }
@@ -126,6 +134,14 @@ func BenchmarkEncode(b *testing.B) {
 
 func BenchmarkEncodeDualHashLazy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.DualHash{Lazy: true}, 1<<20)
+}
+
+func BenchmarkEncodeH2(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H2{}}, 1<<20)
+}
+
+func BenchmarkEncodeH3(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H3{}}, 1<<20)
 }
 
 func BenchmarkEncodeH4(b *testing.B) {
