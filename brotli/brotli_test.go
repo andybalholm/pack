@@ -51,6 +51,14 @@ func TestEncodeH4(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H4{}}, 1<<16)
 }
 
+func TestEncodeH5(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H5{BlockBits: 4, BucketBits: 14}}, 1<<16)
+}
+
+func TestEncodeH6(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 4, BucketBits: 14, HashLen: 5}}, 1<<16)
+}
+
 func TestReset(t *testing.T) {
 	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -146,4 +154,12 @@ func BenchmarkEncodeH3(b *testing.B) {
 
 func BenchmarkEncodeH4(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H4{}}, 1<<20)
+}
+
+func BenchmarkEncodeH5(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H5{BlockBits: 4, BucketBits: 14}}, 1<<20)
+}
+
+func BenchmarkEncodeH6(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 4, BucketBits: 14, HashLen: 5}}, 1<<20)
 }

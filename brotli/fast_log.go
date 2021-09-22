@@ -1,5 +1,7 @@
 package brotli
 
+import "math/bits"
+
 /* Copyright 2013 Google Inc. All Rights Reserved.
 
    Distributed under MIT license.
@@ -9,14 +11,5 @@ package brotli
 /* Utilities for fast computation of logarithms. */
 
 func log2FloorNonZero(n uint) uint32 {
-	/* TODO: generalize and move to platform.h */
-	var result uint32 = 0
-	for {
-		n >>= 1
-		if n == 0 {
-			break
-		}
-		result++
-	}
-	return result
+	return uint32(bits.Len(n)) - 1
 }
