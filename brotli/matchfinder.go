@@ -41,12 +41,27 @@ import (
 // MatchFinder is an implementation of pack.MatchFinder that uses a
 // Hasher to find matches.
 type MatchFinder struct {
-	Hasher      Hasher
-	MaxLength   int
+	Hasher Hasher
+
+	// MaxLength is the limit on the length of matches to find;
+	// 0 means unlimited.
+	MaxLength int
+
+	// MaxDistance is the limit on the distance to look back for matches;
+	// 0 means unlimited.
 	MaxDistance int
 
+	// MaxHistory is the limit on how much data from previous blocks is
+	// kept around to look for matches in; 0 means that no matches from previous
+	// blocks will be found.
+	MaxHistory int
+
+	// MinHistory is the amount of data that is used to start a new history
+	// buffer after the size exceeds MaxHistory.
+	MinHistory int
+
 	initialized bool
-	prevBlock   []byte
+	history     []byte
 
 	// candidateCache is a place to store a reference to the candidates
 	// slice, and avoid an allocation.
@@ -55,28 +70,57 @@ type MatchFinder struct {
 
 func (q *MatchFinder) Reset() {
 	q.Hasher.Init()
-	q.prevBlock = q.prevBlock[:0]
+	q.history = q.history[:0]
 }
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 func (q *MatchFinder) FindMatches(dst []pack.Match, src []byte) []pack.Match {
-	if !q.initialized {
+	var s, nextEmit int
+
+	switch {
+	case q.MaxHistory == 0:
+		// Don't use the history buffer, and start with a freshly initialized
+		// Hasher.
 		q.Hasher.Init()
-		q.initialized = true
+
+		// The encoded form must start with a literal, as there are no previous
+		// bytes to copy, so we start looking for hash matches at s == 1.
+		s = 1
+		nextEmit = 0
+
+	case len(q.history) > q.MaxHistory:
+		// Trim down the history buffer, and reset the Hasher.
+		copy(q.history, q.history[len(q.history)-q.MinHistory:])
+		q.history = q.history[:q.MinHistory]
+		s = q.MinHistory
+		nextEmit = q.MinHistory
+		q.history = append(q.history, src...)
+		src = q.history
+
+		q.Hasher.Init()
+		for i := 1; i < q.MinHistory && i+8 < len(src); i++ {
+			q.Hasher.Store(src, i)
+		}
+
+	default:
+		// Append src to the history buffer.
+		s = len(q.history)
+		nextEmit = len(q.history)
+		q.history = append(q.history, src...)
+		src = q.history
+
+		if !q.initialized {
+			q.Hasher.Init()
+			q.initialized = true
+		}
 	}
 
 	// sLimit is when to stop looking for offset/length copies. The input margin
 	// gives us room to use a 64-bit load for hashing.
 	sLimit := len(src) - 8
 
-	// nextEmit is where in src the next emitLiteral should start from.
-	nextEmit := 0
-
 	candidates := q.candidateCache
 
-	// The encoded form must start with a literal, as there are no previous
-	// bytes to copy, so we start looking for hash matches at s == 1.
-	s := 1
 	prevDistance := 0
 
 	if s > sLimit {
@@ -116,9 +160,6 @@ func (q *MatchFinder) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 				// Often there is a match at the same distance back as the previous one.
 				// Check for that first.
 				candidate := s - prevDistance
-				if candidate < 0 {
-					candidate += len(q.prevBlock)
-				}
 				m, ml := q.checkMatch(src, s, candidate)
 				score := backwardReferenceScoreUsingLastDistance(ml)
 				if score > bestScore {
@@ -201,7 +242,6 @@ emitRemainder:
 			Unmatched: len(src) - nextEmit,
 		})
 	}
-	q.prevBlock = append(q.prevBlock[:0], src...)
 	q.candidateCache = candidates
 	return dst
 }
@@ -218,11 +258,6 @@ func (q *MatchFinder) checkMatch(src []byte, pos, candidate int) (matchPos, matc
 		if (q.MaxDistance == 0 || pos-candidate <= q.MaxDistance) && binary.LittleEndian.Uint32(src[pos:]) == binary.LittleEndian.Uint32(src[candidate:]) {
 			end := extendMatch(src, candidate+4, pos+4)
 			return candidate, end - pos
-		}
-	} else if candidate < len(q.prevBlock)-3 {
-		if (q.MaxDistance == 0 || pos+len(q.prevBlock)-candidate <= q.MaxDistance) && binary.LittleEndian.Uint32(src[pos:]) == binary.LittleEndian.Uint32(q.prevBlock[candidate:]) {
-			end := extendMatch2(q.prevBlock, candidate, src, pos)
-			return candidate - len(q.prevBlock), end - pos
 		}
 	}
 
@@ -263,41 +298,6 @@ func extendMatch(src []byte, i, j int) int {
 		}
 	}
 	for ; j < len(src) && src[i] == src[j]; i, j = i+1, j+1 {
-	}
-	return j
-}
-
-// extendMatch2 returns the largest k such that src1[i:i+k-j] and src2[j:k]
-// have the same contents (and all these indexes are valid).
-func extendMatch2(src1 []byte, i int, src2 []byte, j int) int {
-	switch runtime.GOARCH {
-	case "amd64":
-		// As long as we are 8 or more bytes before the end of src, we can load and
-		// compare 8 bytes at a time. If those 8 bytes are equal, repeat.
-		for i+8 < len(src1) && j+8 < len(src2) {
-			iBytes := binary.LittleEndian.Uint64(src1[i:])
-			jBytes := binary.LittleEndian.Uint64(src2[j:])
-			if iBytes != jBytes {
-				// If those 8 bytes were not equal, XOR the two 8 byte values, and return
-				// the index of the first byte that differs. The BSF instruction finds the
-				// least significant 1 bit, the amd64 architecture is little-endian, and
-				// the shift by 3 converts a bit index to a byte index.
-				return j + bits.TrailingZeros64(iBytes^jBytes)>>3
-			}
-			i, j = i+8, j+8
-		}
-	case "386":
-		// On a 32-bit CPU, we do it 4 bytes at a time.
-		for i+4 < len(src1) && j+4 < len(src2) {
-			iBytes := binary.LittleEndian.Uint32(src1[i:])
-			jBytes := binary.LittleEndian.Uint32(src2[j:])
-			if iBytes != jBytes {
-				return j + bits.TrailingZeros32(iBytes^jBytes)>>3
-			}
-			i, j = i+4, j+4
-		}
-	}
-	for ; i < len(src1) && j < len(src2) && src1[i] == src2[j]; i, j = i+1, j+1 {
 	}
 	return j
 }
