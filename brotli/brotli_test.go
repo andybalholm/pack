@@ -8,6 +8,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/andybalholm/pack"
 	"github.com/andybalholm/pack/flate"
+	"github.com/andybalholm/pack/snappy"
 )
 
 func test(t *testing.T, filename string, m pack.MatchFinder, blockSize int) {
@@ -37,6 +38,10 @@ func test(t *testing.T, filename string, m pack.MatchFinder, blockSize int) {
 
 func TestEncode(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<16)
+}
+
+func TestEncodeM0(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", M0{}, 1<<16)
 }
 
 func TestEncodeH2(t *testing.T) {
@@ -138,6 +143,14 @@ func benchmark(b *testing.B, filename string, m pack.MatchFinder, blockSize int)
 
 func BenchmarkEncode(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<20)
+}
+
+func BenchmarkEncodeSnappy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", snappy.MatchFinder{}, 1<<16)
+}
+
+func BenchmarkEncodeM0(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", M0{}, 1<<16)
 }
 
 func BenchmarkEncodeDualHashLazy(b *testing.B) {
