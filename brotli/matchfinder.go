@@ -200,6 +200,13 @@ func (q *MatchFinder) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			}
 		}
 
+		// Extend the match backward if possible.
+		for base > nextEmit && match > 0 && src[match-1] == src[base-1] {
+			match--
+			base--
+			matchLen++
+		}
+
 		s = base + matchLen
 
 		for q.MaxLength != 0 && s-base > q.MaxLength {
