@@ -44,6 +44,10 @@ func TestEncodeM0(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", M0{}, 1<<16)
 }
 
+func TestEncodeM1(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", M1{}, 1<<16)
+}
+
 func TestEncodeH2(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H2{}}, 1<<16)
 }
@@ -151,6 +155,10 @@ func BenchmarkEncodeSnappy(b *testing.B) {
 
 func BenchmarkEncodeM0(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", M0{}, 1<<16)
+}
+
+func BenchmarkEncodeM1(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", M1{}, 1<<16)
 }
 
 func BenchmarkEncodeDualHashLazy(b *testing.B) {
