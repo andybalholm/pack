@@ -9,7 +9,10 @@ import (
 // M0 is an implementation of the pack.MatchFinder interface based
 // on the algorithm used by snappy, but modified to be more like the algorithm
 // used by compression level 0 of the brotli reference implementation.
-type M0 struct{}
+type M0 struct {
+	// Lazy turns on "lazy matching," for higher compression but less speed.
+	Lazy bool
+}
 
 func (M0) Reset() {}
 
@@ -96,51 +99,51 @@ func (m M0) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			}
 		}
 
-		// A 4-byte match has been found. We'll later see if more than 4 bytes
-		// match. But, prior to the match, src[nextEmit:s] are unmatched.
+		// Invariant: we have a 4-byte match at s.
+		base := s
+		s = extendMatch(src, candidate+4, s+4)
 
-		// Call emitCopy, and then see if another emitCopy could be our next
-		// move. Repeat until we find no match for the input immediately after
-		// what was consumed by the last emitCopy call.
-		//
-		// If we exit this loop normally then we need to call emitLiteral next,
-		// though we don't yet know how big the literal will be. We handle that
-		// by proceeding to the next iteration of the main loop. We also can
-		// exit this loop via goto if we get close to exhausting the input.
-		for {
-			// Invariant: we have a 4-byte match at s.
-			base := s
-
-			s = extendMatch(src, candidate+4, s+4)
-
-			dst = append(dst, pack.Match{
-				Unmatched: base - nextEmit,
-				Length:    s - base,
-				Distance:  base - candidate,
-			})
-			nextEmit = s
-			if s >= sLimit {
-				goto emitRemainder
-			}
-
-			// We could immediately start working at s now, but to improve
-			// compression we first update the hash table at s-1 and at s. If
-			// another emitCopy is not our next move, also calculate nextHash
-			// at s+1. At least on GOARCH=amd64, these three hash calculations
-			// are faster as one load64 call (with some shifts) instead of
-			// three load32 calls.
-			x := binary.LittleEndian.Uint64(src[s-1:])
-			prevHash := m.hash(x >> 0)
-			table[prevHash&m0TableMask] = uint16(s - 1)
-			currHash := m.hash(x >> 8)
-			candidate = int(table[currHash&m0TableMask])
-			table[currHash&m0TableMask] = uint16(s)
-			if uint32(x>>8) != binary.LittleEndian.Uint32(src[candidate:]) {
-				nextHash = m.hash(x >> 16)
-				s++
-				break
+		origBase := base
+		if m.Lazy && base+1 < sLimit {
+			newBase := base + 1
+			h := m.hash(binary.LittleEndian.Uint64(src[newBase:]))
+			newCandidate := int(table[h&m0TableMask])
+			table[h&m0TableMask] = uint16(newBase)
+			if binary.LittleEndian.Uint32(src[newBase:]) == binary.LittleEndian.Uint32(src[newCandidate:]) {
+				newS := extendMatch(src, newCandidate+4, newBase+4)
+				if newS-newBase > s-base+1 {
+					s = newS
+					base = newBase
+					candidate = newCandidate
+				}
 			}
 		}
+
+		dst = append(dst, pack.Match{
+			Unmatched: base - nextEmit,
+			Length:    s - base,
+			Distance:  base - candidate,
+		})
+		nextEmit = s
+		if s >= sLimit {
+			goto emitRemainder
+		}
+
+		if m.Lazy {
+			// If lazy matching is enabled, we update the hash table for
+			// every byte in the match.
+			for i := origBase + 2; i < s-1; i++ {
+				x := binary.LittleEndian.Uint64(src[i:])
+				table[m.hash(x)&m0TableMask] = uint16(i)
+			}
+		}
+
+		// We could immediately start working at s now, but to improve
+		// compression we first update the hash table at s-1 and at s.
+		x := binary.LittleEndian.Uint64(src[s-1:])
+		prevHash := m.hash(x >> 0)
+		table[prevHash&m0TableMask] = uint16(s - 1)
+		nextHash = m.hash(x >> 8)
 	}
 
 emitRemainder:
