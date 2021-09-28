@@ -2,6 +2,7 @@ package brotli
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -66,6 +67,29 @@ func TestEncodeH5(t *testing.T) {
 
 func TestEncodeH6(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 4, BucketBits: 14, HashLen: 5}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
+}
+
+func TestWriterLevels(t *testing.T) {
+	data, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 10; i++ {
+		b := new(bytes.Buffer)
+		w := NewWriter(b, i)
+		w.Write(data)
+		w.Close()
+		compressed := b.Bytes()
+		sr := brotli.NewReader(bytes.NewReader(compressed))
+		decompressed, err := ioutil.ReadAll(sr)
+		if err != nil {
+			t.Fatalf("error decompressing level %d: %v", i, err)
+		}
+		if !bytes.Equal(decompressed, data) {
+			t.Fatalf("decompressed output doesn't match on level %d", i)
+		}
+	}
 }
 
 func TestComposite(t *testing.T) {
@@ -198,7 +222,7 @@ func BenchmarkEncodeComposite_5(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
 		&MatchFinder{
 			Hasher: &CompositeHasher{
-				A: &H5{BlockBits: 1, BucketBits: 15},
+				A: &H4{},
 				B: &H6{BlockBits: 2, BucketBits: 15, HashLen: 8},
 			},
 			MaxHistory: 1 << 18,
@@ -211,7 +235,7 @@ func BenchmarkEncodeComposite_6(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
 		&MatchFinder{
 			Hasher: &CompositeHasher{
-				A: &H5{BlockBits: 2, BucketBits: 15},
+				A: &H4{},
 				B: &H6{BlockBits: 3, BucketBits: 15, HashLen: 8},
 			},
 			MaxHistory: 1 << 18,
@@ -225,7 +249,7 @@ func BenchmarkEncodeComposite_7(b *testing.B) {
 		&MatchFinder{
 			Hasher: &CompositeHasher{
 				A: &H5{BlockBits: 3, BucketBits: 15},
-				B: &H6{BlockBits: 3, BucketBits: 15, HashLen: 8},
+				B: &H6{BlockBits: 4, BucketBits: 15, HashLen: 8},
 			},
 			MaxHistory: 1 << 18,
 			MinHistory: 1 << 16,
@@ -277,4 +301,28 @@ func BenchmarkEncodeH6_8(b *testing.B) {
 
 func BenchmarkEncodeH6_9(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 8, BucketBits: 15, HashLen: 5}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
+}
+
+func BenchmarkWriterLevels(b *testing.B) {
+	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for level := 0; level <= 9; level++ {
+		buf := new(bytes.Buffer)
+		w := NewWriter(buf, level)
+		w.Write(opticks)
+		w.Close()
+		b.Run(fmt.Sprintf("%d", level), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ReportMetric(float64(len(opticks))/float64(buf.Len()), "ratio")
+			b.SetBytes(int64(len(opticks)))
+			for i := 0; i < b.N; i++ {
+				w.Reset(ioutil.Discard)
+				w.Write(opticks)
+				w.Close()
+			}
+		})
+	}
 }
