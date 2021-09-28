@@ -12,6 +12,9 @@ import (
 type M0 struct {
 	// Lazy turns on "lazy matching," for higher compression but less speed.
 	Lazy bool
+
+	MaxDistance int
+	MaxLength   int
 }
 
 func (M0) Reset() {}
@@ -94,6 +97,9 @@ func (m M0) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			candidate = int(table[nextHash&m0TableMask])
 			table[nextHash&m0TableMask] = uint16(s)
 			nextHash = m.hash(binary.LittleEndian.Uint64(src[nextS:]))
+			if m.MaxDistance != 0 && s-candidate > m.MaxDistance {
+				continue
+			}
 			if binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
 				break
 			}
@@ -109,7 +115,11 @@ func (m M0) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			h := m.hash(binary.LittleEndian.Uint64(src[newBase:]))
 			newCandidate := int(table[h&m0TableMask])
 			table[h&m0TableMask] = uint16(newBase)
-			if binary.LittleEndian.Uint32(src[newBase:]) == binary.LittleEndian.Uint32(src[newCandidate:]) {
+			okDistance := true
+			if m.MaxDistance != 0 && newBase-newCandidate > m.MaxDistance {
+				okDistance = false
+			}
+			if okDistance && binary.LittleEndian.Uint32(src[newBase:]) == binary.LittleEndian.Uint32(src[newCandidate:]) {
 				newS := extendMatch(src, newCandidate+4, newBase+4)
 				if newS-newBase > s-base+1 {
 					s = newS
@@ -119,6 +129,9 @@ func (m M0) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			}
 		}
 
+		if m.MaxLength != 0 && s-base > m.MaxLength {
+			s = base + m.MaxLength
+		}
 		dst = append(dst, pack.Match{
 			Unmatched: base - nextEmit,
 			Length:    s - base,

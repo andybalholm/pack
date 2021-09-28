@@ -8,7 +8,6 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/andybalholm/pack"
-	"github.com/andybalholm/pack/flate"
 	"github.com/andybalholm/pack/snappy"
 )
 
@@ -35,10 +34,6 @@ func test(t *testing.T, filename string, m pack.MatchFinder, blockSize int) {
 	if !bytes.Equal(decompressed, data) {
 		t.Fatal("decompressed output doesn't match")
 	}
-}
-
-func TestEncode(t *testing.T) {
-	test(t, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<16)
 }
 
 func TestEncodeM0(t *testing.T) {
@@ -112,10 +107,14 @@ func TestReset(t *testing.T) {
 	}
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
-		Dest:        ioutil.Discard,
-		MatchFinder: &flate.BestSpeed{},
-		Encoder:     &Encoder{},
-		BlockSize:   1 << 16,
+		Dest: ioutil.Discard,
+		MatchFinder: &MatchFinder{
+			Hasher:     &H2{},
+			MaxHistory: 1 << 17,
+			MinHistory: 1 << 16,
+		},
+		Encoder:   &Encoder{},
+		BlockSize: 1 << 16,
 	}
 	w.Write(opticks)
 	w.Close()
@@ -138,7 +137,7 @@ func TestEncodeHelloHello(t *testing.T) {
 	b := new(bytes.Buffer)
 	w := &pack.Writer{
 		Dest:        b,
-		MatchFinder: &flate.BestSpeed{},
+		MatchFinder: M0{},
 		Encoder:     &Encoder{},
 		BlockSize:   1 << 16,
 	}
@@ -182,10 +181,6 @@ func benchmark(b *testing.B, filename string, m pack.MatchFinder, blockSize int)
 	}
 }
 
-func BenchmarkEncode(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{}, 1<<20)
-}
-
 func BenchmarkEncodeSnappy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", snappy.MatchFinder{}, 1<<16)
 }
@@ -196,10 +191,6 @@ func BenchmarkEncodeM0(b *testing.B) {
 
 func BenchmarkEncodeM0Lazy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", M0{Lazy: true}, 1<<16)
-}
-
-func BenchmarkEncodeDualHashLazy(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.DualHash{Lazy: true}, 1<<20)
 }
 
 func BenchmarkEncodeH2(b *testing.B) {
