@@ -68,6 +68,19 @@ func TestEncodeH6(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 4, BucketBits: 14, HashLen: 5}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
 }
 
+func TestComposite(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 1, BucketBits: 15},
+				B: &H6{BlockBits: 2, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
+}
+
 func TestReset(t *testing.T) {
 	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -179,6 +192,71 @@ func BenchmarkEncodeH4(b *testing.B) {
 
 func BenchmarkEncodeH5(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H5{BlockBits: 4, BucketBits: 14}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
+}
+
+func BenchmarkEncodeComposite_5(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 1, BucketBits: 15},
+				B: &H6{BlockBits: 2, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
+}
+
+func BenchmarkEncodeComposite_6(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 2, BucketBits: 15},
+				B: &H6{BlockBits: 3, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
+}
+
+func BenchmarkEncodeComposite_7(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 3, BucketBits: 15},
+				B: &H6{BlockBits: 3, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
+}
+
+func BenchmarkEncodeComposite_8(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 3, BucketBits: 15},
+				B: &H6{BlockBits: 5, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
+}
+
+func BenchmarkEncodeComposite_9(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt",
+		&MatchFinder{
+			Hasher: &CompositeHasher{
+				A: &H5{BlockBits: 4, BucketBits: 15},
+				B: &H6{BlockBits: 6, BucketBits: 15, HashLen: 8},
+			},
+			MaxHistory: 1 << 18,
+			MinHistory: 1 << 16,
+		},
+		1<<16)
 }
 
 func BenchmarkEncodeH6_5(b *testing.B) {
