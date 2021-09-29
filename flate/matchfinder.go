@@ -29,13 +29,11 @@ const (
 	hashShift     = (hashBits + minMatchLength - 1) / minMatchLength
 	maxHashOffset = 1 << 24
 
-	skipNever = math.MaxInt32
-
 	debugDeflate = false
 )
 
 type compressionLevel struct {
-	good, lazy, nice, chain, fastSkipHashing, level int
+	good, lazy, nice, chain, level int
 }
 
 // Compression levels have been rebalanced from zlib deflate defaults
@@ -44,15 +42,15 @@ type compressionLevel struct {
 var levels = []compressionLevel{
 	{}, // 0
 	// Level 1-3 uses specialized algorithm - values not used
-	{0, 0, 0, 0, 0, 1},
-	{0, 0, 0, 0, 0, 2},
-	{0, 0, 0, 0, 0, 3},
-	{4, 4, 8, 8, 0, 4},
-	{4, 4, 12, 12, 0, 5},
-	{4, 6, 16, 16, skipNever, 6},
-	{8, 8, 24, 16, skipNever, 7},
-	{10, 16, 24, 64, skipNever, 8},
-	{32, 258, 258, 4096, skipNever, 9},
+	{0, 0, 0, 0, 1},
+	{0, 0, 0, 0, 2},
+	{0, 0, 0, 0, 3},
+	{4, 4, 8, 8, 4},
+	{4, 4, 12, 12, 5},
+	{4, 6, 16, 16, 6},
+	{8, 8, 24, 16, 7},
+	{10, 16, 24, 64, 8},
+	{32, 258, 258, 4096, 9},
 }
 
 // advancedState contains state for the advanced levels, with bigger hash tables, etc.
@@ -88,7 +86,6 @@ type compressor struct {
 	window     []byte
 	windowEnd  int
 	blockStart int // window index where current tokens start
-	err        error
 
 	// queued output tokens
 	matches []pack.Match
@@ -230,7 +227,6 @@ func bulkHash4(b []byte, dst []uint32) {
 func (d *compressor) initDeflate() {
 	d.window = make([]byte, 2*windowSize)
 	d.byteAvailable = false
-	d.err = nil
 	if d.state == nil {
 		return
 	}
@@ -425,7 +421,6 @@ func (d *compressor) init(level int) (err error) {
 // reset the state of the compressor.
 func (d *compressor) Reset() {
 	d.sync = false
-	d.err = nil
 	s := d.state
 	s.chainHead = -1
 	for i := range s.hashHead {
