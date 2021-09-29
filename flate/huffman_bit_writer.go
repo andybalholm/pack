@@ -22,17 +22,6 @@ const (
 	codegenCodeCount = 19
 	badCode          = 255
 
-	// bufferFlushSize indicates the buffer size
-	// after which bytes are flushed to the writer.
-	// Should preferably be a multiple of 6, since
-	// we accumulate 6 bytes between writes to the buffer.
-	bufferFlushSize = 240
-
-	// bufferSize is the actual output byte buffer size.
-	// It must have additional headroom for a flush
-	// which can contain up to 8 bytes.
-	bufferSize = bufferFlushSize + 8
-
 	maxNumLit         = 286
 	maxStoreBlockSize = 65535
 	baseMatchLength   = 3 // The smallest match length per the RFC section 3.2.5
@@ -339,15 +328,12 @@ func (w *huffmanBitWriter) writeDynamicHeader(numLiterals int, numOffsets int, n
 		case 16:
 			w.writeBits(int32(w.codegen[i]), 2)
 			i++
-			break
 		case 17:
 			w.writeBits(int32(w.codegen[i]), 3)
 			i++
-			break
 		case 18:
 			w.writeBits(int32(w.codegen[i]), 7)
 			i++
-			break
 		}
 	}
 }
