@@ -25,7 +25,6 @@ const (
 	maxNumLit         = 286
 	maxStoreBlockSize = 65535
 	baseMatchLength   = 3 // The smallest match length per the RFC section 3.2.5
-	minMatchLength    = 4 // The smallest match length that the compressor actually emits
 	baseMatchOffset   = 1 // The smallest match offset
 )
 

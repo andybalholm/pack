@@ -22,6 +22,15 @@ func NewGZIPWriter(w io.Writer, level int) *pack.Writer {
 }
 
 func newWriter(w io.Writer, level int, e pack.Encoder) *pack.Writer {
+	return &pack.Writer{
+		Dest:        w,
+		MatchFinder: NewMatchFinder(level),
+		Encoder:     e,
+		BlockSize:   1 << 16,
+	}
+}
+
+func NewMatchFinder(level int) pack.MatchFinder {
 	if level < 1 {
 		level = 1
 	}
@@ -29,74 +38,28 @@ func newWriter(w io.Writer, level int, e pack.Encoder) *pack.Writer {
 		level = 9
 	}
 
-	if level == 1 {
-		return &pack.Writer{
-			Dest: w,
-			MatchFinder: brotli.M0{
-				MaxDistance: 32768,
-				MaxLength:   258,
-			},
-			Encoder:   e,
-			BlockSize: 1 << 16,
-		}
-	}
-
 	var h brotli.Hasher
 	switch level {
 	case 1:
-		return &pack.Writer{
-			Dest: w,
-			MatchFinder: brotli.M0{
-				MaxDistance: 32768,
-				MaxLength:   258,
-			},
-			Encoder:   e,
-			BlockSize: 1 << 16,
-		}
-	case 2:
-		return &pack.Writer{
-			Dest:        w,
-			MatchFinder: &DualHash{},
-			Encoder:     e,
-			BlockSize:   1 << 16,
-		}
-	case 3:
-		return &pack.Writer{
-			Dest:        w,
-			MatchFinder: &DualHash{Lazy: true},
-			Encoder:     e,
-			BlockSize:   1 << 16,
-		}
-	case 4:
-		h = &brotli.H3{}
-	case 5:
-		h = &brotli.H4{}
-	case 6:
-		h = &brotli.H6{BlockBits: 3, BucketBits: 15, HashLen: 5}
-	case 7:
-		h = &brotli.H6{BlockBits: 4, BucketBits: 15, HashLen: 5}
-	case 8:
-		h = &brotli.CompositeHasher{
-			A: &brotli.H5{BlockBits: 2, BucketBits: 15},
-			B: &brotli.H6{BlockBits: 3, BucketBits: 15, HashLen: 8},
-		}
-	case 9:
-		h = &brotli.CompositeHasher{
-			A: &brotli.H5{BlockBits: 3, BucketBits: 15},
-			B: &brotli.H6{BlockBits: 5, BucketBits: 15, HashLen: 8},
-		}
-	}
-
-	return &pack.Writer{
-		Dest: w,
-		MatchFinder: &brotli.MatchFinder{
-			Hasher:      h,
-			MaxHistory:  1 << 17,
-			MinHistory:  1 << 15,
+		return brotli.M0{
 			MaxDistance: 32768,
 			MaxLength:   258,
-		},
-		Encoder:   e,
-		BlockSize: 1 << 16,
+		}
+	case 2:
+		return &DualHash{}
+	case 3:
+		return &DualHash{Lazy: true}
+	case 4, 5, 6, 7, 8, 9:
+		c := new(compressor)
+		c.init(level)
+		return c
+	}
+
+	return &brotli.MatchFinder{
+		Hasher:      h,
+		MaxHistory:  1 << 17,
+		MinHistory:  1 << 15,
+		MaxDistance: 32768,
+		MaxLength:   258,
 	}
 }
