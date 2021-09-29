@@ -15,18 +15,15 @@ import (
 )
 
 const (
-	logWindowSize    = 15
-	windowSize       = 1 << logWindowSize
-	windowMask       = windowSize - 1
-	logMaxOffsetSize = 15  // Standard DEFLATE
-	minMatchLength   = 4   // The smallest match that the compressor looks for
-	maxMatchLength   = 258 // The longest match for the compressor
-	minOffsetSize    = 1   // The shortest offset that makes any sense
+	logWindowSize  = 15
+	windowSize     = 1 << logWindowSize
+	windowMask     = windowSize - 1
+	minMatchLength = 4   // The smallest match that the compressor looks for
+	maxMatchLength = 258 // The longest match for the compressor
 
 	hashBits      = 17 // After 17 performance degrades
 	hashSize      = 1 << hashBits
 	hashMask      = (1 << hashBits) - 1
-	hashShift     = (hashBits + minMatchLength - 1) / minMatchLength
 	maxHashOffset = 1 << 24
 
 	debugDeflate = false
