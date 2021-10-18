@@ -409,7 +409,7 @@ func (d *compressor) init(level int) (err error) {
 		d.compressionLevel = levels[level]
 		d.initDeflate()
 	default:
-		return fmt.Errorf("flate: invalid compression level %d: want value in range [7, 9]", level)
+		return fmt.Errorf("flate: invalid compression level %d: want value in range [4, 9]", level)
 	}
 	d.level = level
 	return nil
