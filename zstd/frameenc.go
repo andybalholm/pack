@@ -6,9 +6,6 @@ package zstd
 
 import (
 	"encoding/binary"
-	"fmt"
-	"io"
-	"math"
 	"math/bits"
 )
 
@@ -19,8 +16,6 @@ type frameHeader struct {
 	Checksum      bool
 	DictID        uint32
 }
-
-const maxHeaderSize = 14
 
 var frameMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
 
@@ -91,49 +86,4 @@ func (f frameHeader) appendTo(dst []byte) ([]byte, error) {
 		panic("invalid fcs")
 	}
 	return dst, nil
-}
-
-const skippableFrameHeader = 4 + 4
-
-// calcSkippableFrame will return a total size to be added for written
-// to be divisible by multiple.
-// The value will always be > skippableFrameHeader.
-// The function will panic if written < 0 or wantMultiple <= 0.
-func calcSkippableFrame(written, wantMultiple int64) int {
-	if wantMultiple <= 0 {
-		panic("wantMultiple <= 0")
-	}
-	if written < 0 {
-		panic("written < 0")
-	}
-	leftOver := written % wantMultiple
-	if leftOver == 0 {
-		return 0
-	}
-	toAdd := wantMultiple - leftOver
-	for toAdd < skippableFrameHeader {
-		toAdd += wantMultiple
-	}
-	return int(toAdd)
-}
-
-// skippableFrame will add a skippable frame with a total size of bytes.
-// total should be >= skippableFrameHeader and < math.MaxUint32.
-func skippableFrame(dst []byte, total int, r io.Reader) ([]byte, error) {
-	if total == 0 {
-		return dst, nil
-	}
-	if total < skippableFrameHeader {
-		return dst, fmt.Errorf("requested skippable frame (%d) < 8", total)
-	}
-	if int64(total) > math.MaxUint32 {
-		return dst, fmt.Errorf("requested skippable frame (%d) > max uint32", total)
-	}
-	dst = append(dst, 0x50, 0x2a, 0x4d, 0x18)
-	f := uint32(total - skippableFrameHeader)
-	dst = append(dst, uint8(f), uint8(f>>8), uint8(f>>16), uint8(f>>24))
-	start := len(dst)
-	dst = append(dst, make([]byte, f)...)
-	_, err := io.ReadFull(r, dst[start:])
-	return dst, err
 }

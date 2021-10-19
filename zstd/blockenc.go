@@ -95,14 +95,6 @@ func (b *blockEnc) reset(prev *blockEnc) {
 	b.dictLitEnc = nil
 }
 
-// reset will reset the block for a new encode, but in the same stream,
-// meaning that state will be carried over, but the block content is reset.
-// If a previous block is provided, the recent offsets are carried over.
-func (b *blockEnc) swapEncoders(prev *blockEnc) {
-	b.coders.swap(&prev.coders)
-	b.litEnc, prev.litEnc = prev.litEnc, b.litEnc
-}
-
 // blockHeader contains the information for a block header.
 type blockHeader uint32
 
@@ -249,88 +241,6 @@ func (b *blockEnc) popOffsets() {
 	b.recentOffsets = b.prevRecentOffsets
 }
 
-// matchOffset will adjust recent offsets and return the adjusted one,
-// if it matches a previous offset.
-func (b *blockEnc) matchOffset(offset, lits uint32) uint32 {
-	// Check if offset is one of the recent offsets.
-	// Adjusts the output offset accordingly.
-	// Gives a tiny bit of compression, typically around 1%.
-	if true {
-		if lits > 0 {
-			switch offset {
-			case b.recentOffsets[0]:
-				offset = 1
-			case b.recentOffsets[1]:
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset = 2
-			case b.recentOffsets[2]:
-				b.recentOffsets[2] = b.recentOffsets[1]
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset = 3
-			default:
-				b.recentOffsets[2] = b.recentOffsets[1]
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset += 3
-			}
-		} else {
-			switch offset {
-			case b.recentOffsets[1]:
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset = 1
-			case b.recentOffsets[2]:
-				b.recentOffsets[2] = b.recentOffsets[1]
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset = 2
-			case b.recentOffsets[0] - 1:
-				b.recentOffsets[2] = b.recentOffsets[1]
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset = 3
-			default:
-				b.recentOffsets[2] = b.recentOffsets[1]
-				b.recentOffsets[1] = b.recentOffsets[0]
-				b.recentOffsets[0] = offset
-				offset += 3
-			}
-		}
-	} else {
-		offset += 3
-	}
-	return offset
-}
-
-// encodeRaw can be used to set the output to a raw representation of supplied bytes.
-func (b *blockEnc) encodeRaw(a []byte) {
-	var bh blockHeader
-	bh.setLast(b.last)
-	bh.setSize(uint32(len(a)))
-	bh.setType(blockTypeRaw)
-	b.output = bh.appendTo(b.output[:0])
-	b.output = append(b.output, a...)
-	if debugEncoder {
-		println("Adding RAW block, length", len(a), "last:", b.last)
-	}
-}
-
-// encodeRaw can be used to set the output to a raw representation of supplied bytes.
-func (b *blockEnc) encodeRawTo(dst, src []byte) []byte {
-	var bh blockHeader
-	bh.setLast(b.last)
-	bh.setSize(uint32(len(src)))
-	bh.setType(blockTypeRaw)
-	dst = bh.appendTo(dst)
-	dst = append(dst, src...)
-	if debugEncoder {
-		println("Adding RAW block, length", len(src), "last:", b.last)
-	}
-	return dst
-}
-
 // encodeLits can be used if the block is only litLen.
 func (b *blockEnc) encodeLits(lits []byte, raw bool) error {
 	panic("encodeLits")
@@ -419,52 +329,6 @@ func (b *blockEnc) encodeLits(lits []byte, raw bool) error {
 	// No sequences.
 	b.output = append(b.output, 0)
 	return nil
-}
-
-// fuzzFseEncoder can be used to fuzz the FSE encoder.
-func fuzzFseEncoder(data []byte) int {
-	if len(data) > maxSequences || len(data) < 2 {
-		return 0
-	}
-	enc := fseEncoder{}
-	hist := enc.Histogram()[:256]
-	maxSym := uint8(0)
-	for i, v := range data {
-		v = v & 63
-		data[i] = v
-		hist[v]++
-		if v > maxSym {
-			maxSym = v
-		}
-	}
-	if maxSym == 0 {
-		// All 0
-		return 0
-	}
-	maxCount := func(a []uint32) int {
-		var max uint32
-		for _, v := range a {
-			if v > max {
-				max = v
-			}
-		}
-		return int(max)
-	}
-	cnt := maxCount(hist[:maxSym])
-	if cnt == len(data) {
-		// RLE
-		return 0
-	}
-	enc.HistogramFinished(maxSym, cnt)
-	err := enc.normalizeCount(len(data))
-	if err != nil {
-		return 0
-	}
-	_, err = enc.writeCount(nil)
-	if err != nil {
-		panic(err)
-	}
-	return 1
 }
 
 // encode will encode the block and append the output in b.output.
