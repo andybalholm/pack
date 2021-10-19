@@ -48,9 +48,12 @@ func (e *Encoder) Encode(dst []byte, src []byte, matches []pack.Match, lastBlock
 			blk.extraLits = m.Unmatched
 			break
 		}
+
+		offsetCode := blk.matchOffset(uint32(m.Distance), uint32(m.Unmatched))
+
 		blk.sequences = append(blk.sequences, seq{
 			litLen:   uint32(m.Unmatched),
-			offset:   uint32(m.Distance + 3),
+			offset:   uint32(offsetCode),
 			matchLen: uint32(m.Length - 3),
 		})
 		pos += m.Unmatched + m.Length
