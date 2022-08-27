@@ -17,7 +17,7 @@ func TestBlockEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var mf flate.BestSpeed
+	var mf BestSpeed
 	matches := mf.FindMatches(nil, data)
 	var be BlockEncoder
 	compressed := be.Encode(nil, data, matches, true)
@@ -42,7 +42,7 @@ func TestFrameEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var mf flate.BestSpeed
+	var mf BestSpeed
 	matches := mf.FindMatches(nil, data)
 	var fe FrameEncoder
 	compressed := fe.Encode(nil, data, matches, true)
@@ -63,7 +63,7 @@ func TestWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var mf flate.BestSpeed
+	var mf BestSpeed
 	var fe FrameEncoder
 
 	b := new(bytes.Buffer)
@@ -93,7 +93,7 @@ func TestWriterReset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var mf flate.BestSpeed
+	var mf BestSpeed
 	var fe FrameEncoder
 
 	b := new(bytes.Buffer)
@@ -151,4 +151,8 @@ func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
 
 func BenchmarkEncodeFlateBestSpeed(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &flate.BestSpeed{})
+}
+
+func BenchmarkEncodeBestSpeed(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
 }
