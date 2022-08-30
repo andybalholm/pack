@@ -122,6 +122,39 @@ func TestWriterReset(t *testing.T) {
 	}
 }
 
+func test(t *testing.T, filename string, m pack.MatchFinder) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := new(bytes.Buffer)
+	w := &pack.Writer{
+		Dest:        b,
+		MatchFinder: m,
+		Encoder:     &FrameEncoder{},
+		BlockSize:   65536,
+	}
+	w.Write(data)
+	w.Close()
+	compressed := b.Bytes()
+	sr := lz4.NewReader(bytes.NewReader(compressed))
+	decompressed, err := ioutil.ReadAll(sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decompressed, data) {
+		t.Fatal("decompressed output doesn't match")
+	}
+}
+
+func TestBestSpeed(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
+}
+
+func TestHashChain(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{})
+}
+
 func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
 	b.StopTimer()
 	b.ReportAllocs()
@@ -155,4 +188,8 @@ func BenchmarkEncodeFlateBestSpeed(b *testing.B) {
 
 func BenchmarkEncodeBestSpeed(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
+}
+
+func BenchmarkEncodeHashChain(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{})
 }
