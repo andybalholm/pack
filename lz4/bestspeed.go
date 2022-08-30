@@ -71,13 +71,14 @@ func (q *BestSpeed) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	// The encoded form must start with a literal, as there are no previous
 	// bytes to copy, so we start looking for hash matches at s == 1.
 	s := 1
-	nextHash := hash4(binary.LittleEndian.Uint32(src[s:]))
 
 	if s > sLimit {
 		goto emitRemainder
 	}
 
 	for {
+		nextHash := hash4(binary.LittleEndian.Uint32(src[s:]))
+
 		// Copied from the C++ snappy implementation:
 		//
 		// Heuristic match skipping: If 32 bytes are scanned with no matches
@@ -144,10 +145,9 @@ func (q *BestSpeed) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 
 		// We could immediately start working at s now, but to improve
 		// compression we first update the hash table at s-1.
-		x := binary.LittleEndian.Uint64(src[s-1:])
-		prevHash := hash4(uint32(x >> 0))
+		x := binary.LittleEndian.Uint32(src[s-1:])
+		prevHash := hash4(x)
 		q.table[prevHash&tableMask] = uint32(s - 1)
-		nextHash = hash4(uint32(x >> 8))
 	}
 
 emitRemainder:
