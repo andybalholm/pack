@@ -184,10 +184,22 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		}
 
 		// We could immediately start working at s now, but to improve
-		// compression we first update the hash table at s-1.
-		x := binary.LittleEndian.Uint32(src[s-1:])
-		prevHash := hash4(x)
-		q.table[prevHash&tableMask] = uint32(s - 1)
+		// compression we first update the hash table.
+		for i := base + 1; i < s; i++ {
+			h := hash4(binary.LittleEndian.Uint32(src[i:]))
+			prev := int(q.table[h&tableMask])
+			q.table[h&tableMask] = uint32(i)
+
+			if prev == 0 {
+				continue
+			}
+			if prev >= i {
+				prev -= len(q.prevBlock)
+			}
+			if i-prev < 65536 {
+				q.chain[i] = uint16(i - prev)
+			}
+		}
 	}
 
 emitRemainder:
