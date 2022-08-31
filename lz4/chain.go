@@ -40,7 +40,6 @@ import (
 // uses hash chaining to find longer matches.
 type HashChain struct {
 	SearchLen int
-	ChainSwap bool
 
 	table [maxTableSize]uint32
 
@@ -158,7 +157,7 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			newS := extendMatch(src, newCandidate, base)
 			if newS > s {
 				s, match = newS, newCandidate
-				if q.ChainSwap {
+				if i+1 < q.SearchLen {
 					// Instead of always following the hash chain for the start of the match,
 					// try to find and follow the rarest chain so that we don't have to check as many locations.
 					var maxDist uint16

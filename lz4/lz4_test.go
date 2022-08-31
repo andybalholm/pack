@@ -155,10 +155,6 @@ func TestHashChain(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
 }
 
-func TestHashChainSwap(t *testing.T) {
-	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100, ChainSwap: true})
-}
-
 func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
 	b.StopTimer()
 	b.ReportAllocs()
@@ -198,6 +194,10 @@ func BenchmarkEncodeHashChain1(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1})
 }
 
+func BenchmarkEncodeHashChain2(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 2})
+}
+
 func BenchmarkEncodeHashChain10(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 10})
 }
@@ -208,20 +208,4 @@ func BenchmarkEncodeHashChain100(b *testing.B) {
 
 func BenchmarkEncodeHashChain1000(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1000})
-}
-
-func BenchmarkEncodeHashChainSwap1(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1, ChainSwap: true})
-}
-
-func BenchmarkEncodeHashChainSwap10(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 10, ChainSwap: true})
-}
-
-func BenchmarkEncodeHashChainSwap100(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100, ChainSwap: true})
-}
-
-func BenchmarkEncodeHashChainSwap1000(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1000, ChainSwap: true})
 }
