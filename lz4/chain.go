@@ -108,9 +108,8 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 
 	for {
 		nextS := s
-		candidate := 0
+		var match, matchLen int
 
-	searchLoop:
 		for {
 			s = nextS
 			nextS = s + 1
@@ -118,68 +117,26 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 				goto emitRemainder
 			}
 
-			candidate = s
-		chainLoop:
-			for i := 0; i < q.SearchLen+1; i++ {
-				d := q.chain[candidate]
-				if d == 0 {
-					break chainLoop
-				}
-				candidate -= int(d)
-				if candidate < 0 || s-candidate > maxDistance {
-					break chainLoop
-				}
-				if binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
-					break searchLoop
-				}
-			}
-		}
-
-		// A 4-byte match has been found. We'll later see if more than 4 bytes
-		// match. But, prior to the match, src[nextEmit:s] are unmatched.
-		base := s
-		s = extendMatch(src, candidate+4, s+4)
-		match := candidate
-
-		// Follow the chain to see if we can find a longer match.
-		chainPos := 0
-		for i := 0; i < q.SearchLen; i++ {
-			newCandidate := candidate - int(q.chain[candidate+chainPos])
-			if newCandidate == candidate || newCandidate < 0 || s-newCandidate > maxDistance {
+			match, matchLen = q.findMatch(s)
+			if matchLen >= 4 {
 				break
 			}
-
-			newS := extendMatch(src, newCandidate, base)
-			if newS > s {
-				s, match = newS, newCandidate
-				if i+1 < q.SearchLen {
-					// Instead of always following the hash chain for the start of the match,
-					// try to find and follow the rarest chain so that we don't have to check as many locations.
-					var maxDist uint16
-					for pos := 0; pos < s-base-3; pos++ {
-						i := match + pos
-						dist := q.chain[i]
-						if dist > maxDist {
-							maxDist = dist
-							chainPos = pos
-						}
-					}
-				}
-			}
-			candidate = newCandidate
 		}
 
+		base := s
 		// Extend the match backward if possible.
 		for base > nextEmit && match > 0 && src[match-1] == src[base-1] {
 			match--
 			base--
+			matchLen++
 		}
 
 		dst = append(dst, pack.Match{
 			Unmatched: base - nextEmit,
-			Length:    s - base,
+			Length:    matchLen,
 			Distance:  base - match,
 		})
+		s = base + matchLen
 		nextEmit = s
 		if s >= sLimit {
 			goto emitRemainder
@@ -193,4 +150,57 @@ emitRemainder:
 		})
 	}
 	return dst
+}
+
+func (q *HashChain) findMatch(pos int) (match, matchLen int) {
+	src := q.history
+	candidate := pos
+	for i := 0; i < q.SearchLen+1; i++ {
+		d := q.chain[candidate]
+		if d == 0 {
+			return 0, 0
+		}
+		candidate -= int(d)
+		if candidate < 0 || pos-candidate > maxDistance {
+			return 0, 0
+		}
+		if binary.LittleEndian.Uint32(src[pos:]) == binary.LittleEndian.Uint32(src[candidate:]) {
+			goto found
+		}
+	}
+	return 0, 0
+
+found:
+	match = candidate
+	matchLen = extendMatch(src, candidate+4, pos+4) - pos
+
+	// Follow the chain to see if we can find a longer match.
+	chainPos := 0
+	for i := 0; i < q.SearchLen; i++ {
+		newCandidate := candidate - int(q.chain[candidate+chainPos])
+		if newCandidate == candidate || newCandidate < 0 || pos-newCandidate > maxDistance {
+			break
+		}
+
+		newLen := extendMatch(src, newCandidate, pos) - pos
+		if newLen > matchLen {
+			match, matchLen = newCandidate, newLen
+			if i+1 < q.SearchLen {
+				// Instead of always following the hash chain for the start of the match,
+				// try to find and follow the rarest chain so that we don't have to check as many locations.
+				var maxDist uint16
+				for p := 0; p < matchLen-3; p++ {
+					i := match + p
+					dist := q.chain[i]
+					if dist > maxDist {
+						maxDist = dist
+						chainPos = p
+					}
+				}
+			}
+		}
+		candidate = newCandidate
+	}
+
+	return match, matchLen
 }
