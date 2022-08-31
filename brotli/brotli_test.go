@@ -8,6 +8,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/andybalholm/pack"
+	"github.com/andybalholm/pack/lz4"
 	"github.com/andybalholm/pack/snappy"
 )
 
@@ -292,6 +293,26 @@ func BenchmarkEncodeH6_8(b *testing.B) {
 
 func BenchmarkEncodeH6_9(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 8, BucketBits: 15, HashLen: 5}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
+}
+
+func BenchmarkEncodeLZ4BestSpeed(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &lz4.BestSpeed{}, 1<<16)
+}
+
+func BenchmarkEncodeHashChain1(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &lz4.HashChain{SearchLen: 1}, 1<<16)
+}
+
+func BenchmarkEncodeHashChain10(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &lz4.HashChain{SearchLen: 10}, 1<<16)
+}
+
+func BenchmarkEncodeHashChain100(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &lz4.HashChain{SearchLen: 100}, 1<<16)
+}
+
+func BenchmarkEncodeHashChain1000(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &lz4.HashChain{SearchLen: 1000}, 1<<16)
 }
 
 func BenchmarkWriterLevels(b *testing.B) {

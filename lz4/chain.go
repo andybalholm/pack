@@ -174,6 +174,12 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			candidate = newCandidate
 		}
 
+		// Extend the match backward if possible.
+		for base > nextEmit && match > 0 && src[match-1] == src[base-1] {
+			match--
+			base--
+		}
+
 		dst = append(dst, pack.Match{
 			Unmatched: base - nextEmit,
 			Length:    s - base,
