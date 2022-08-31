@@ -68,7 +68,7 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		copy(q.history, q.history[delta:])
 		q.history = q.history[:minHistory]
 		copy(q.chain, q.chain[delta:])
-		q.chain = q.chain[:minHistory]
+		q.chain = q.chain[:len(q.chain)-delta]
 
 		for i, v := range q.table {
 			newV := int(v) - delta
@@ -83,8 +83,21 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	s = len(q.history)
 	nextEmit = len(q.history)
 	q.history = append(q.history, src...)
-	q.chain = append(q.chain, make([]uint16, len(src))...)
 	src = q.history
+
+	chain := q.chain
+	// Pre-calculate hashes and chains.
+	for i := len(chain); i+3 < len(src); i++ {
+		h := hash4(binary.LittleEndian.Uint32(src[i:]))
+		candidate := int(q.table[h&tableMask])
+		q.table[h&tableMask] = uint32(i)
+		if candidate == 0 || i-candidate > 65535 {
+			chain = append(chain, 0)
+		} else {
+			chain = append(chain, uint16(i-candidate))
+		}
+	}
+	q.chain = chain
 
 	// sLimit is when to stop looking for offset/length copies.
 	sLimit := len(src) - 12
@@ -94,49 +107,31 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	}
 
 	for {
-		nextHash := hash4(binary.LittleEndian.Uint32(src[s:]))
-
-		// Copied from the C++ snappy implementation:
-		//
-		// Heuristic match skipping: If 32 bytes are scanned with no matches
-		// found, start looking only at every other byte. If 32 more bytes are
-		// scanned (or skipped), look at every third byte, etc.. When a match
-		// is found, immediately go back to looking at every byte. This is a
-		// small loss (~5% performance, ~0.1% density) for compressible data
-		// due to more bookkeeping, but for non-compressible data (such as
-		// JPEG) it's a huge win since the compressor quickly "realizes" the
-		// data is incompressible and doesn't bother looking for matches
-		// everywhere.
-		//
-		// The "skip" variable keeps track of how many bytes there are since
-		// the last match; dividing it by 32 (ie. right-shifting by five) gives
-		// the number of bytes to move ahead for each iteration.
-		skip := 32
-
 		nextS := s
 		candidate := 0
+
+	searchLoop:
 		for {
 			s = nextS
-			bytesBetweenHashLookups := skip >> 5
-			nextS = s + bytesBetweenHashLookups
-			skip += bytesBetweenHashLookups
+			nextS = s + 1
 			if nextS > sLimit {
 				goto emitRemainder
 			}
-			candidate = int(q.table[nextHash&tableMask])
-			q.table[nextHash&tableMask] = uint32(s)
 
-			nextHash = hash4(binary.LittleEndian.Uint32(src[nextS:]))
-
-			if candidate == 0 {
-				continue
-			}
-			if s-candidate < 65536 {
-				q.chain[s] = uint16(s - candidate)
-			}
-
-			if s-candidate <= maxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
-				break
+			candidate = s
+		chainLoop:
+			for i := 0; i < q.SearchLen+1; i++ {
+				d := q.chain[candidate]
+				if d == 0 {
+					break chainLoop
+				}
+				candidate -= int(d)
+				if candidate < 0 || s-candidate > maxDistance {
+					break chainLoop
+				}
+				if binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
+					break searchLoop
+				}
 			}
 		}
 
@@ -188,21 +183,6 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		nextEmit = s
 		if s >= sLimit {
 			goto emitRemainder
-		}
-
-		// We could immediately start working at s now, but to improve
-		// compression we first update the hash table.
-		for i := base + 1; i < s; i++ {
-			h := hash4(binary.LittleEndian.Uint32(src[i:]))
-			prev := int(q.table[h&tableMask])
-			q.table[h&tableMask] = uint32(i)
-
-			if prev == 0 {
-				continue
-			}
-			if i-prev < 65536 {
-				q.chain[i] = uint16(i - prev)
-			}
 		}
 	}
 
