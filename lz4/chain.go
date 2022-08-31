@@ -42,40 +42,53 @@ type HashChain struct {
 	SearchLen int
 	ChainSwap bool
 
-	table     [maxTableSize]uint32
-	prevBlock []byte
+	table [maxTableSize]uint32
 
-	chain     []uint16
-	prevChain []uint16
+	history []byte
+	chain   []uint16
 }
+
+const (
+	minHistory = 1 << 16
+	maxHistory = 1 << 18
+)
 
 func (q *HashChain) Reset() {
 	q.table = [maxTableSize]uint32{}
-	q.prevBlock = q.prevBlock[:0]
+	q.history = q.history[:0]
 	q.chain = q.chain[:0]
-	q.prevChain = q.prevChain[:0]
 }
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
-	if cap(q.chain) >= len(src) {
-		q.chain = q.chain[:len(src)]
-		for i := range q.chain {
-			q.chain[i] = 0
+	var s, nextEmit int
+
+	if len(q.history) > maxHistory {
+		// Trim down the history buffer.
+		delta := len(q.history) - minHistory
+		copy(q.history, q.history[delta:])
+		q.history = q.history[:minHistory]
+		copy(q.chain, q.chain[delta:])
+		q.chain = q.chain[:minHistory]
+
+		for i, v := range q.table {
+			newV := int(v) - delta
+			if newV < 0 {
+				newV = 0
+			}
+			q.table[i] = uint32(newV)
 		}
-	} else {
-		q.chain = make([]uint16, len(src))
 	}
+
+	// Append src to the history buffer.
+	s = len(q.history)
+	nextEmit = len(q.history)
+	q.history = append(q.history, src...)
+	q.chain = append(q.chain, make([]uint16, len(src))...)
+	src = q.history
 
 	// sLimit is when to stop looking for offset/length copies.
 	sLimit := len(src) - 12
-
-	// nextEmit is where in src the next emitLiteral should start from.
-	nextEmit := 0
-
-	// The encoded form must start with a literal, as there are no previous
-	// bytes to copy, so we start looking for hash matches at s == 1.
-	s := 1
 
 	if s > sLimit {
 		goto emitRemainder
@@ -114,12 +127,6 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			candidate = int(q.table[nextHash&tableMask])
 			q.table[nextHash&tableMask] = uint32(s)
 
-			// If the candidate is after the current position,
-			// it is actually from the previous block.
-			if candidate >= s {
-				candidate -= len(q.prevBlock)
-			}
-
 			nextHash = hash4(binary.LittleEndian.Uint32(src[nextS:]))
 
 			if candidate == 0 {
@@ -129,51 +136,26 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 				q.chain[s] = uint16(s - candidate)
 			}
 
-			if candidate > 0 {
-				if s-candidate <= maxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
-					break
-				}
-			} else if candidate < -3 {
-				if s-candidate <= maxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(q.prevBlock[candidate+len(q.prevBlock):]) {
-					break
-				}
+			if s-candidate <= maxDistance && binary.LittleEndian.Uint32(src[s:]) == binary.LittleEndian.Uint32(src[candidate:]) {
+				break
 			}
 		}
 
 		// A 4-byte match has been found. We'll later see if more than 4 bytes
 		// match. But, prior to the match, src[nextEmit:s] are unmatched.
 		base := s
-
-		if candidate > 0 {
-			s = extendMatch(src, candidate+4, s+4)
-		} else {
-			s = extendMatch2(q.prevBlock, candidate+len(q.prevBlock)+4, src, s+4)
-		}
-
+		s = extendMatch(src, candidate+4, s+4)
 		match := candidate
 
 		// Follow the chain to see if we can find a longer match.
 		chainPos := 0
 		for i := 0; i < q.SearchLen; i++ {
-			var newCandidate int
-			if candidate >= 0 {
-				newCandidate = candidate - int(q.chain[candidate+chainPos])
-			} else {
-				if candidate+chainPos > -1 {
-					chainPos = 0
-				}
-				newCandidate = candidate - int(q.prevChain[candidate+chainPos+len(q.prevChain)])
-			}
-			if newCandidate == candidate || newCandidate < -len(q.prevBlock) || s-newCandidate > maxDistance {
+			newCandidate := candidate - int(q.chain[candidate+chainPos])
+			if newCandidate == candidate || newCandidate < 0 || s-newCandidate > maxDistance {
 				break
 			}
 
-			var newS int
-			if newCandidate > 0 {
-				newS = extendMatch(src, newCandidate, base)
-			} else {
-				newS = extendMatch2(q.prevBlock, newCandidate+len(q.prevBlock), src, base)
-			}
+			newS := extendMatch(src, newCandidate, base)
 			if newS > s {
 				s, match = newS, newCandidate
 				if q.ChainSwap {
@@ -182,12 +164,7 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 					var maxDist uint16
 					for pos := 0; pos < s-base-3; pos++ {
 						i := match + pos
-						var dist uint16
-						if i > 0 {
-							dist = q.chain[i]
-						} else {
-							dist = q.prevChain[i+len(q.prevChain)]
-						}
+						dist := q.chain[i]
 						if dist > maxDist {
 							maxDist = dist
 							chainPos = pos
@@ -218,9 +195,6 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			if prev == 0 {
 				continue
 			}
-			if prev >= i {
-				prev -= len(q.prevBlock)
-			}
 			if i-prev < 65536 {
 				q.chain[i] = uint16(i - prev)
 			}
@@ -233,7 +207,5 @@ emitRemainder:
 			Unmatched: len(src) - nextEmit,
 		})
 	}
-	q.prevBlock = append(q.prevBlock[:0], src...)
-	q.chain, q.prevChain = q.prevChain[:0], q.chain
 	return dst
 }
