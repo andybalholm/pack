@@ -39,6 +39,8 @@ import (
 // HashChain is an implementation of the MatchFinder interface that
 // uses hash chaining to find longer matches.
 type HashChain struct {
+	SearchLen int
+
 	table     [maxTableSize]uint32
 	prevBlock []byte
 
@@ -150,7 +152,7 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		match := candidate
 
 		// Follow the chain to see if we can find a longer match.
-		for {
+		for i := 0; i < q.SearchLen; i++ {
 			var newCandidate int
 			if candidate > 0 {
 				newCandidate = candidate - int(q.chain[candidate])

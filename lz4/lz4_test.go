@@ -152,7 +152,7 @@ func TestBestSpeed(t *testing.T) {
 }
 
 func TestHashChain(t *testing.T) {
-	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{})
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
 }
 
 func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
@@ -190,6 +190,18 @@ func BenchmarkEncodeBestSpeed(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
 }
 
-func BenchmarkEncodeHashChain(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{})
+func BenchmarkEncodeHashChain1(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1})
+}
+
+func BenchmarkEncodeHashChain10(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 10})
+}
+
+func BenchmarkEncodeHashChain100(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
+}
+
+func BenchmarkEncodeHashChain1000(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1000})
 }
