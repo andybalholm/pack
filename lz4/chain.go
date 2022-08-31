@@ -40,6 +40,7 @@ import (
 // uses hash chaining to find longer matches.
 type HashChain struct {
 	SearchLen int
+	ChainSwap bool
 
 	table     [maxTableSize]uint32
 	prevBlock []byte
@@ -152,12 +153,16 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 		match := candidate
 
 		// Follow the chain to see if we can find a longer match.
+		chainPos := 0
 		for i := 0; i < q.SearchLen; i++ {
 			var newCandidate int
-			if candidate > 0 {
-				newCandidate = candidate - int(q.chain[candidate])
+			if candidate >= 0 {
+				newCandidate = candidate - int(q.chain[candidate+chainPos])
 			} else {
-				newCandidate = candidate - int(q.prevChain[candidate+len(q.prevChain)])
+				if candidate+chainPos > -1 {
+					chainPos = 0
+				}
+				newCandidate = candidate - int(q.prevChain[candidate+chainPos+len(q.prevChain)])
 			}
 			if newCandidate == candidate || newCandidate < -len(q.prevBlock) || s-newCandidate > maxDistance {
 				break
@@ -171,6 +176,24 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 			}
 			if newS > s {
 				s, match = newS, newCandidate
+				if q.ChainSwap {
+					// Instead of always following the hash chain for the start of the match,
+					// try to find and follow the rarest chain so that we don't have to check as many locations.
+					var maxDist uint16
+					for pos := 0; pos < s-base-3; pos++ {
+						i := match + pos
+						var dist uint16
+						if i > 0 {
+							dist = q.chain[i]
+						} else {
+							dist = q.prevChain[i+len(q.prevChain)]
+						}
+						if dist > maxDist {
+							maxDist = dist
+							chainPos = pos
+						}
+					}
+				}
 			}
 			candidate = newCandidate
 		}
