@@ -102,48 +102,180 @@ func (q *HashChain) FindMatches(dst []pack.Match, src []byte) []pack.Match {
 	// sLimit is when to stop looking for offset/length copies.
 	sLimit := len(src) - 12
 
-	if s > sLimit {
-		goto emitRemainder
-	}
+	// The parsing algorithm in the following loop is based on
+	// https://fastcompression.blogspot.com/2011/12/advanced-parsing-strategies.html
+	// and its implementation in LZ4HC.
 
-	for {
-		nextS := s
-		var match, matchLen int
+	var (
+		ml0, ml, ml2, ml3             int // match lengths
+		start0, start, start2, start3 int // starting points
+		match0, match, match2, match3 int // indexes to the earlier, matching sequences
+	)
 
-		for {
-			s = nextS
-			nextS = s + 1
-			if nextS > sLimit {
-				goto emitRemainder
-			}
-
-			match, matchLen = q.findMatch(s)
-			if matchLen >= 4 {
-				break
-			}
+	for s < sLimit {
+		match, ml = q.findMatch(s)
+		if ml < 4 {
+			s++
+			continue
 		}
+		start = s
 
-		base := s
 		// Extend the match backward if possible.
-		for base > nextEmit && match > 0 && src[match-1] == src[base-1] {
+		for start > nextEmit && match > 0 && src[match-1] == src[start-1] {
 			match--
-			base--
-			matchLen++
+			start--
+			ml++
 		}
 
-		dst = append(dst, pack.Match{
-			Unmatched: base - nextEmit,
-			Length:    matchLen,
-			Distance:  base - match,
-		})
-		s = base + matchLen
-		nextEmit = s
-		if s >= sLimit {
-			goto emitRemainder
+		// Save the original match, in case we would skip too much.
+		start0, ml0, match0 = start, ml, match
+
+	search2:
+		if start+ml < sLimit {
+			start2, ml2, match2 = q.findOverlappingMatch(start, ml)
+		} else {
+			start2, ml2, match2 = 0, 0, 0
 		}
+
+		if ml2 <= ml {
+			// The new match is no better than the first one,
+			// so go ahead and encode match 1.
+			dst = append(dst, pack.Match{
+				Unmatched: start - nextEmit,
+				Length:    ml,
+				Distance:  start - match,
+			})
+			s = start + ml
+			nextEmit = s
+			continue
+		}
+
+		// If the original first match was skipped, and the current first would be
+		// squeezed by the second match to be shorter than the original, restore the original first match.
+		if start0 < start && start2 < start+ml0 {
+			start, ml, match = start0, ml0, match0
+		}
+
+		if start2-start < 3 {
+			// Skip the original match, and replace it with the second match.
+			start, ml, match = start2, ml2, match2
+			goto search2
+		}
+
+	search3:
+		// Before searching for a third match, adjust the overlap between the first two matches
+		// to make the first one as long as possible, up to 18 bytes (which is the optimal short match
+		// in LZ4).
+		if start2-start < 18 {
+			newML := ml
+			if newML > 18 {
+				newML = 18
+			}
+			if start+newML > start2+ml2-4 {
+				newML = start2 - start + ml2 - 4
+			}
+			correction := newML - (start2 - start)
+			if correction > 0 {
+				start2 += correction
+				match2 += correction
+				ml2 -= correction
+			}
+		}
+
+		if start2+ml2 < sLimit {
+			start3, ml3, match3 = q.findOverlappingMatch(start2, ml2)
+		} else {
+			start3, ml3, match3 = 0, 0, 0
+		}
+
+		if ml3 <= ml2 {
+			// No better match was found; encode matches 1 and 2.
+			if start2 < start+ml {
+				ml = start2 - start
+			}
+			dst = append(dst, pack.Match{
+				Unmatched: start - nextEmit,
+				Length:    ml,
+				Distance:  start - match,
+			}, pack.Match{
+				Unmatched: start2 - (start + ml),
+				Length:    ml2,
+				Distance:  start2 - match2,
+			})
+			s = start2 + ml2
+			nextEmit = s
+			continue
+		}
+
+		if start3 < start+ml+3 {
+			// There isn't enough space for match 2; remove it.
+			if start3 < start+ml {
+				// Matches 1 and 3 overlap, so call match 3 match 2 and look for a new match 3.
+				start2, ml2, match2 = start3, ml3, match3
+				goto search3
+			}
+
+			// Matches 1 and 3 don't overlap, so we can write match 1 immediately
+			// and use match 3 as our new match 1.
+			dst = append(dst, pack.Match{
+				Unmatched: start - nextEmit,
+				Length:    ml,
+				Distance:  start - match,
+			})
+			nextEmit = start + ml
+
+			// Save what's left of match 2, to be restored if we skip too much.
+			start0, ml0, match0 = start2, ml2, match2
+			if start0 < nextEmit {
+				correction := nextEmit - start0
+				start0 = nextEmit
+				ml0 -= correction
+				match0 += correction
+				if ml0 < 4 {
+					start0, ml0, match0 = start3, ml3, match3
+				}
+			}
+
+			start, ml, match = start3, ml3, match3
+			goto search2
+		}
+
+		// We have three matches; let's adjust the length of match 1, and then write it.
+		if start2 < start+ml {
+			if start2-start < 18 {
+				if ml > 18 {
+					ml = 18
+				}
+				if start+ml > start2+ml2-4 {
+					ml = start2 - start + ml2 - 4
+				}
+				correction := ml - (start2 - start)
+				if correction > 0 {
+					start2 += correction
+					match2 += correction
+					ml2 -= correction
+				}
+			} else {
+				ml = start2 - start
+			}
+		}
+		dst = append(dst, pack.Match{
+			Unmatched: start - nextEmit,
+			Length:    ml,
+			Distance:  start - match,
+		})
+		nextEmit = start + ml
+
+		// Match 2 becomes match 1.
+		start, ml, match = start2, ml2, match2
+
+		// Match 3 becomes match 2.
+		start2, ml2, match2 = start3, ml3, match3
+
+		// Look for a new match 3.
+		goto search3
 	}
 
-emitRemainder:
 	if nextEmit < len(src) {
 		dst = append(dst, pack.Match{
 			Unmatched: len(src) - nextEmit,
@@ -203,4 +335,52 @@ found:
 	}
 
 	return match, matchLen
+}
+
+// findOverlappingMatch searches for a match that overlaps the end of an
+// existing match.
+func (q *HashChain) findOverlappingMatch(oldStart, oldLength int) (start, length, match int) {
+	src := q.history
+	searchPos := oldStart + oldLength - 2
+	searchSeq := binary.LittleEndian.Uint32(src[searchPos:])
+	if searchPos+4 >= len(src) {
+		return 0, 0, 0
+	}
+
+	candidate := searchPos
+	for i := 0; i < q.SearchLen; i++ {
+		d := q.chain[candidate]
+		if d == 0 {
+			break
+		}
+		candidate -= int(d)
+		if candidate < 0 || searchPos-candidate > maxDistance {
+			break
+		}
+		if binary.LittleEndian.Uint32(src[candidate:]) != searchSeq {
+			continue
+		}
+
+		newEnd := extendMatch(src, candidate+4, searchPos+4)
+
+		// Extend the match backward as far as possible.
+		newStart := searchPos
+		newMatch := candidate
+		for newStart >= oldStart+4 && newMatch >= 4 && binary.LittleEndian.Uint32(src[newStart-4:]) == binary.LittleEndian.Uint32(src[newMatch-4:]) {
+			newStart -= 4
+			newMatch -= 4
+		}
+		for newStart > oldStart && newMatch > 0 && src[newStart-1] == src[newMatch-1] {
+			newStart--
+			newMatch--
+		}
+
+		if newEnd-newStart > length {
+			start = newStart
+			length = newEnd - newStart
+			match = newMatch
+		}
+	}
+
+	return start, length, match
 }
