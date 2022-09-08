@@ -155,6 +155,10 @@ func TestHashChain(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
 }
 
+func TestGreedyParser(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.GreedyParser{}})
+}
+
 func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
 	b.StopTimer()
 	b.ReportAllocs()
@@ -208,4 +212,20 @@ func BenchmarkEncodeHashChain100(b *testing.B) {
 
 func BenchmarkEncodeHashChain1000(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1000})
+}
+
+func BenchmarkEncodeGreedyParser1(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1, Parser: &pack.GreedyParser{}})
+}
+
+func BenchmarkEncodeGreedyParser10(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 10, Parser: &pack.GreedyParser{}})
+}
+
+func BenchmarkEncodeGreedyParser100(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.GreedyParser{}})
+}
+
+func BenchmarkEncodeGreedyParser1000(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.GreedyParser{}})
 }
