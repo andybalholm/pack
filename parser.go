@@ -91,3 +91,56 @@ func longestMatch(matches []AbsoluteMatch) AbsoluteMatch {
 
 	return longest
 }
+
+// A LazyParser implements the lazy matching strategy: Before choosing a match,
+// it checks for a longer match starting at the next byte.
+type LazyParser struct {
+	matchCache []AbsoluteMatch
+}
+
+func (p *LazyParser) Parse(dst []Match, src Searcher, start, end int) []Match {
+	matches := p.matchCache[:0]
+	s := start
+	nextEmit := start
+	var m AbsoluteMatch
+
+mainLoop:
+	for {
+		nextS := s
+		for {
+			s = nextS
+			nextS = s + 1
+			if nextS >= end {
+				break mainLoop
+			}
+
+			matches = src.Search(matches[:0], s, nextEmit, end)
+			m = longestMatch(matches)
+			if m.End >= m.Start+4 {
+				break
+			}
+		}
+
+		matches = src.Search(matches[:0], s+1, nextEmit, end)
+		newMatch := longestMatch(matches)
+		if newMatch.End-newMatch.Start > m.End-m.Start+1 {
+			m = newMatch
+		}
+
+		dst = append(dst, Match{
+			Unmatched: m.Start - nextEmit,
+			Length:    m.End - m.Start,
+			Distance:  m.Start - m.Match,
+		})
+		s = m.End
+		nextEmit = s
+	}
+
+	if nextEmit < end {
+		dst = append(dst, Match{
+			Unmatched: end - nextEmit,
+		})
+	}
+	p.matchCache = matches[:0]
+	return dst
+}

@@ -229,3 +229,19 @@ func BenchmarkEncodeGreedyParser100(b *testing.B) {
 func BenchmarkEncodeGreedyParser1000(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.GreedyParser{}})
 }
+
+func BenchmarkEncodeLazyParser1(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1, Parser: &pack.LazyParser{}})
+}
+
+func BenchmarkEncodeLazyParser10(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 10, Parser: &pack.LazyParser{}})
+}
+
+func BenchmarkEncodeLazyParser100(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.LazyParser{}})
+}
+
+func BenchmarkEncodeLazyParser1000(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.LazyParser{}})
+}
