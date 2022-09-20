@@ -151,10 +151,6 @@ func TestBestSpeed(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
 }
 
-func TestHashChain(t *testing.T) {
-	test(t, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
-}
-
 func TestGreedyParser(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.GreedyParser{}})
 }
@@ -200,26 +196,6 @@ func BenchmarkEncodeFlateBestSpeed(b *testing.B) {
 
 func BenchmarkEncodeBestSpeed(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &BestSpeed{})
-}
-
-func BenchmarkEncodeHashChain1(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1})
-}
-
-func BenchmarkEncodeHashChain2(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 2})
-}
-
-func BenchmarkEncodeHashChain10(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 10})
-}
-
-func BenchmarkEncodeHashChain100(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 100})
-}
-
-func BenchmarkEncodeHashChain1000(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &HashChain{SearchLen: 1000})
 }
 
 func BenchmarkEncodeGreedyParser1(b *testing.B) {
