@@ -9,8 +9,15 @@ import (
 // HashChain is an implementation of the MatchFinder interface that
 // uses hash chaining to find longer matches.
 type HashChain struct {
+	// SearchLen is how many entries to examine on the hash chain.
+	// The default is 1.
 	SearchLen int
-	Parser    Parser
+
+	// MaxDistance is the maximum distance (in bytes) to look back for
+	// a match. The default is 65535.
+	MaxDistance int
+
+	Parser Parser
 
 	table [maxTableSize]uint32
 
@@ -27,8 +34,6 @@ const (
 	// tableMask is redundant, but helps the compiler eliminate bounds
 	// checks.
 	tableMask = maxTableSize - 1
-
-	maxDistance = 65535
 )
 
 func (q *HashChain) Reset() {
@@ -39,6 +44,12 @@ func (q *HashChain) Reset() {
 
 // FindMatches looks for matches in src, appends them to dst, and returns dst.
 func (q *HashChain) FindMatches(dst []Match, src []byte) []Match {
+	if q.MaxDistance == 0 {
+		q.MaxDistance = 65535
+	}
+	if q.SearchLen == 0 {
+		q.SearchLen = 1
+	}
 	var nextEmit int
 
 	if len(q.history) > maxHistory {
@@ -141,7 +152,7 @@ func (q *HashChain) Search(dst []AbsoluteMatch, pos, min, max int) []AbsoluteMat
 			break
 		}
 		candidate -= int(d)
-		if candidate < 0 || pos-candidate > maxDistance {
+		if candidate < 0 || pos-candidate > q.MaxDistance {
 			break
 		}
 		if binary.LittleEndian.Uint32(src[candidate:]) != searchSeq {
