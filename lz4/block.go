@@ -75,3 +75,11 @@ func appendInt(dst []byte, n int) []byte {
 	dst = append(dst, byte(n))
 	return dst
 }
+
+func Score(m pack.AbsoluteMatch) int {
+	s := m.End - m.Start
+	if s > 18 {
+		s -= 1
+	}
+	return s
+}

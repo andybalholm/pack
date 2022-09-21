@@ -275,6 +275,7 @@ func (q *MatchFinder) checkMatch(src []byte, pos, candidate int) (matchPos, matc
 // src[i:i+k-j] and src[j:k] have the same contents.
 //
 // It assumes that:
+//
 //	0 <= i && i < j && j <= len(src)
 func extendMatch(src []byte, i, j int) int {
 	switch runtime.GOARCH {
@@ -318,26 +319,33 @@ const scoreBase = (distanceBitPenalty * 8 * 8)
 
 const minScore = scoreBase + 100
 
-/* Usually, we always choose the longest backward reference. This function
-   allows for the exception of that rule.
+/*
+Usually, we always choose the longest backward reference. This function
 
-   If we choose a backward reference that is further away, it will
-   usually be coded with more bits. We approximate this by assuming
-   log2(distance). If the distance can be expressed in terms of the
-   last four distances, we use some heuristic constants to estimate
-   the bits cost. For the first up to four literals we use the bit
-   cost of the literals from the literal cost model, after that we
-   use the average bit cost of the cost model.
+	allows for the exception of that rule.
 
-   This function is used to sometimes discard a longer backward reference
-   when it is not much longer and the bit cost for encoding it is more
-   than the saved literals.
+	If we choose a backward reference that is further away, it will
+	usually be coded with more bits. We approximate this by assuming
+	log2(distance). If the distance can be expressed in terms of the
+	last four distances, we use some heuristic constants to estimate
+	the bits cost. For the first up to four literals we use the bit
+	cost of the literals from the literal cost model, after that we
+	use the average bit cost of the cost model.
 
-   backward_reference_offset MUST be positive. */
+	This function is used to sometimes discard a longer backward reference
+	when it is not much longer and the bit cost for encoding it is more
+	than the saved literals.
+
+	backward_reference_offset MUST be positive.
+*/
 func backwardReferenceScore(copy_length int, backward_reference_offset int) int {
 	return scoreBase + literalByteScore*copy_length - distanceBitPenalty*int(log2FloorNonZero(uint(backward_reference_offset)))
 }
 
 func backwardReferenceScoreUsingLastDistance(copy_length int) int {
 	return literalByteScore*copy_length + scoreBase + 15
+}
+
+func Score(m pack.AbsoluteMatch) int {
+	return backwardReferenceScore(m.End-m.Start, m.Start-m.Match)
 }

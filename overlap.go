@@ -4,19 +4,76 @@ package pack
 // using an algorithm based on
 // https://fastcompression.blogspot.com/2011/12/advanced-parsing-strategies.html
 type OverlapParser struct {
-	matchCache1, matchCache2 []AbsoluteMatch
+	// Score is used to choose the best match. If it is nil,
+	// the length of the match is used as its score.
+	Score func(AbsoluteMatch) int
+
+	matchCache []AbsoluteMatch
+	setCache   []matchSet
+}
+
+func length(m AbsoluteMatch) int {
+	return m.End - m.Start
+}
+
+type matchSet struct {
+	AbsoluteMatch
+	options []AbsoluteMatch
+}
+
+func (ms *matchSet) choose(score func(AbsoluteMatch) int) {
+	ms.AbsoluteMatch = AbsoluteMatch{}
+	maxScore := 0
+
+	for _, m := range ms.options {
+		s := score(m)
+		if s > maxScore {
+			ms.AbsoluteMatch = m
+			maxScore = s
+		}
+	}
+}
+
+// trim chooses the best match from ms.options, with the range limited to
+// min..max.
+func (ms *matchSet) trim(min, max int, score func(AbsoluteMatch) int) {
+	ms.AbsoluteMatch = AbsoluteMatch{}
+	maxScore := 0
+
+	for _, m := range ms.options {
+		if m.Start < min {
+			m.Match += min - m.Start
+			m.Start = min
+		}
+		if m.End > max {
+			m.End = max
+		}
+		if m.End <= m.Start {
+			continue
+		}
+		s := score(m)
+		if s > maxScore {
+			ms.AbsoluteMatch = m
+			maxScore = s
+		}
+	}
 }
 
 func (p *OverlapParser) Parse(dst []Match, src Searcher, start, end int) []Match {
 	s := start
 	nextEmit := start
-	matchesHere := p.matchCache1[:0]
-	matchList := p.matchCache2[:0]
+	matchList := p.setCache[:0]
+
+	if p.Score == nil {
+		p.Score = length
+	}
 
 	for s < end {
 		matchList = matchList[:0]
-		matchesHere = src.Search(matchesHere[:0], s, nextEmit, end)
-		m := longestMatch(matchesHere)
+
+		p.matchCache = src.Search(p.matchCache[:0], s, nextEmit, end)
+		m := matchSet{options: p.matchCache}
+		m.choose(p.Score)
 		if m.End-m.Start < 4 {
 			s++
 			continue
@@ -25,10 +82,12 @@ func (p *OverlapParser) Parse(dst []Match, src Searcher, start, end int) []Match
 
 		for {
 			// Look for a new match overlapping the end of m.
-			matchesHere = src.Search(matchesHere[:0], m.End-2, m.Start, end)
-			newMatch := longestMatch(matchesHere)
-			if newMatch.End-newMatch.Start <= m.End-m.Start {
-				// It's no longer than the previous match, so ignore it.
+			cacheLen := len(p.matchCache)
+			p.matchCache = src.Search(p.matchCache, m.End-2, m.Start, end)
+			newMatch := matchSet{options: p.matchCache[cacheLen:]}
+			newMatch.choose(p.Score)
+			if p.Score(newMatch.AbsoluteMatch) <= p.Score(m.AbsoluteMatch) {
+				// It's no better than the previous match, so ignore it.
 				break
 			}
 			m = newMatch
@@ -44,8 +103,11 @@ func (p *OverlapParser) Parse(dst []Match, src Searcher, start, end int) []Match
 				// the following one has already been trimmed.
 				// So we'll trim the following one to remove the overlap with this match.
 				if matchList[i].End > matchList[i+1].Start {
-					matchList[i+1].Match += matchList[i].End - matchList[i+1].Start
-					matchList[i+1].Start = matchList[i].End
+					if i < len(matchList)-2 {
+						matchList[i+1].trim(matchList[i].End, matchList[i+2].Start, p.Score)
+					} else {
+						matchList[i+1].trim(matchList[i].End, end, p.Score)
+					}
 				}
 				if matchList[i+1].End-matchList[i+1].Start < 4 {
 					// The following match is too short now, so we'll just drop it.
@@ -60,7 +122,7 @@ func (p *OverlapParser) Parse(dst []Match, src Searcher, start, end int) []Match
 				// The following match is longer than this one, so we'll trim this one
 				// to remove the overlap.
 				if matchList[i].End > matchList[i+1].Start {
-					matchList[i].End = matchList[i+1].Start
+					matchList[i].trim(nextEmit, matchList[i+1].Start, p.Score)
 				}
 				if matchList[i].End-matchList[i].Start < 4 {
 					// This match is too short now, so we'll just drop it.
@@ -85,7 +147,6 @@ func (p *OverlapParser) Parse(dst []Match, src Searcher, start, end int) []Match
 			Unmatched: end - nextEmit,
 		})
 	}
-	p.matchCache1 = matchesHere[:0]
-	p.matchCache2 = matchList[:0]
+	p.setCache = matchList[:0]
 	return dst
 }

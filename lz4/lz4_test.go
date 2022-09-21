@@ -231,17 +231,17 @@ func BenchmarkEncodeLazyParser1000(b *testing.B) {
 }
 
 func BenchmarkEncodeOverlapParser1(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1, Parser: &pack.OverlapParser{}})
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1, Parser: &pack.OverlapParser{Score: Score}})
 }
 
 func BenchmarkEncodeOverlapParser10(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 10, Parser: &pack.OverlapParser{}})
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 10, Parser: &pack.OverlapParser{Score: Score}})
 }
 
 func BenchmarkEncodeOverlapParser100(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.OverlapParser{}})
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.OverlapParser{Score: Score}})
 }
 
 func BenchmarkEncodeOverlapParser1000(b *testing.B) {
-	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.OverlapParser{}})
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.OverlapParser{Score: Score}})
 }
