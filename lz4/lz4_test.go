@@ -163,6 +163,18 @@ func TestOverlapParser(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 100, Parser: &pack.OverlapParser{}})
 }
 
+func TestSingleHashGreedy(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.GreedyParser{}})
+}
+
+func TestSingleHashLazy(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.LazyParser{}})
+}
+
+func TestSingleHashOverlap(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.OverlapParser{}})
+}
+
 func benchmark(b *testing.B, filename string, m pack.MatchFinder) {
 	b.StopTimer()
 	b.ReportAllocs()
@@ -244,4 +256,16 @@ func BenchmarkEncodeOverlapParser100(b *testing.B) {
 
 func BenchmarkEncodeOverlapParser1000(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, Parser: &pack.OverlapParser{Score: Score}})
+}
+
+func BenchmarkEncodeSingleHashGreedy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.GreedyParser{}})
+}
+
+func BenchmarkEncodeSingleHashLazy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.LazyParser{}})
+}
+
+func BenchmarkEncodeSingleHashOverlap(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{Parser: &pack.OverlapParser{}})
 }
