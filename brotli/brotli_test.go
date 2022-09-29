@@ -315,6 +315,30 @@ func BenchmarkEncodeHashChain1000(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.HashChain{SearchLen: 1000, MaxDistance: 1 << 20, Parser: &pack.OverlapParser{Score: Score}}, 1<<16)
 }
 
+func BenchmarkEncodeSingleHashGreedy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.GreedyParser{}}, 1<<16)
+}
+
+func BenchmarkEncodeSingleHashLazy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.LazyParser{}}, 1<<16)
+}
+
+func BenchmarkEncodeSingleHashOverlap(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.OverlapParser{Score: Score}}, 1<<16)
+}
+
+func BenchmarkEncodeDualHashGreedy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHash{MaxDistance: 1 << 20, Parser: &pack.GreedyParser{}}, 1<<16)
+}
+
+func BenchmarkEncodeDualHashLazy(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHash{MaxDistance: 1 << 20, Parser: &pack.LazyParser{}}, 1<<16)
+}
+
+func BenchmarkEncodeDualHashOverlap(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHash{MaxDistance: 1 << 20, Parser: &pack.OverlapParser{Score: Score}}, 1<<16)
+}
+
 func BenchmarkWriterLevels(b *testing.B) {
 	opticks, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {

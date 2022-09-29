@@ -2,6 +2,13 @@ package pack
 
 import "encoding/binary"
 
+const (
+	table8Bits  = 17
+	table8Size  = 1 << table8Bits
+	table8Mask  = table8Size - 1
+	table8Shift = 64 - table8Bits
+)
+
 // DualHash is an implementation of the MatchFinder interface
 // that uses two hash tables (4-byte and 8-byte).
 type DualHash struct {
@@ -12,7 +19,7 @@ type DualHash struct {
 	Parser Parser
 
 	table4 [maxTableSize]uint32
-	table8 [maxTableSize]uint32
+	table8 [table8Size]uint32
 
 	history []byte
 
@@ -21,7 +28,7 @@ type DualHash struct {
 
 func (q *DualHash) Reset() {
 	q.table4 = [maxTableSize]uint32{}
-	q.table8 = [maxTableSize]uint32{}
+	q.table8 = [table8Size]uint32{}
 	q.history = q.history[:0]
 }
 
@@ -95,8 +102,8 @@ func (q *DualHash) Search(dst []AbsoluteMatch, pos, min, max int) []AbsoluteMatc
 	}
 
 	h8 := hash8(binary.LittleEndian.Uint64(src[pos:]))
-	candidate8 := int(q.table8[h8&tableMask])
-	q.table8[h8&tableMask] = uint32(pos)
+	candidate8 := int(q.table8[h8&table8Mask])
+	q.table8[h8&table8Mask] = uint32(pos)
 
 	if candidate8 != 0 && candidate8 != candidate4 && pos-candidate8 <= q.MaxDistance && binary.LittleEndian.Uint64(src[pos:]) == binary.LittleEndian.Uint64(src[candidate8:]) {
 		// We have a 8-byte match now.
@@ -120,5 +127,5 @@ func (q *DualHash) Search(dst []AbsoluteMatch, pos, min, max int) []AbsoluteMatc
 }
 
 func hash8(u uint64) uint32 {
-	return uint32((u * 0x1FE35A7BD3579BD3) >> (shift + 32))
+	return uint32((u * 0x1FE35A7BD3579BD3) >> table8Shift)
 }
