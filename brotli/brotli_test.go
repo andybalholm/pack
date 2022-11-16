@@ -327,6 +327,10 @@ func BenchmarkEncodeSingleHashOverlap(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.OverlapParser{Score: Score}}, 1<<16)
 }
 
+func BenchmarkEncodeSingleHashOverlapInlined(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHashOverlap{MaxDistance: 1 << 20}, 1<<16)
+}
+
 func BenchmarkEncodeDualHashGreedy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHash{MaxDistance: 1 << 20, Parser: &pack.GreedyParser{}}, 1<<16)
 }
