@@ -319,6 +319,10 @@ func BenchmarkEncodeSingleHashGreedy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.GreedyParser{}}, 1<<16)
 }
 
+func BenchmarkEncodeSingleHashGreedyInlined(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHashGreedy{MaxDistance: 1 << 20}, 1<<16)
+}
+
 func BenchmarkEncodeSingleHashLazy(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHash{MaxDistance: 1 << 20, Parser: &pack.LazyParser{}}, 1<<16)
 }
