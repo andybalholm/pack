@@ -69,6 +69,10 @@ func TestEncodeO2(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{MaxDistance: 1 << 18}, 1<<16)
 }
 
+func TestEncodeO3(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.O3{MaxDistance: 1 << 18}, 1<<16)
+}
+
 func TestWriterLevels(t *testing.T) {
 	data, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -341,6 +345,10 @@ func BenchmarkEncodeSingleHashOverlapInlined(b *testing.B) {
 
 func BenchmarkEncodeO2(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{MaxDistance: 1 << 20}, 1<<16)
+}
+
+func BenchmarkEncodeO3(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.O3{MaxDistance: 1 << 20}, 1<<16)
 }
 
 func BenchmarkEncodeDualHashGreedy(b *testing.B) {
