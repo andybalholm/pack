@@ -65,6 +65,10 @@ func TestEncodeH6(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &MatchFinder{Hasher: &H6{BlockBits: 4, BucketBits: 14, HashLen: 5}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
 }
 
+func TestEncodeO2(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{MaxDistance: 1 << 18}, 1<<16)
+}
+
 func TestWriterLevels(t *testing.T) {
 	data, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -333,6 +337,10 @@ func BenchmarkEncodeSingleHashOverlap(b *testing.B) {
 
 func BenchmarkEncodeSingleHashOverlapInlined(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHashOverlap{MaxDistance: 1 << 20}, 1<<16)
+}
+
+func BenchmarkEncodeO2(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{MaxDistance: 1 << 20}, 1<<16)
 }
 
 func BenchmarkEncodeDualHashGreedy(b *testing.B) {

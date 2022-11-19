@@ -183,6 +183,10 @@ func TestSingleHashOverlapInlined(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHashOverlap{})
 }
 
+func TestO2(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{})
+}
+
 func TestDualHashGreedy(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHash{Parser: &pack.GreedyParser{}})
 }
@@ -296,6 +300,10 @@ func BenchmarkEncodeSingleHashOverlap(b *testing.B) {
 
 func BenchmarkEncodeSingleHashOverlapInlined(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SingleHashOverlap{})
+}
+
+func BenchmarkEncodeO2(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.O2{})
 }
 
 func BenchmarkEncodeDualHashGreedy(b *testing.B) {
