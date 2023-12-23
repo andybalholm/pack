@@ -46,6 +46,10 @@ func TestEncodeH4(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &brotli.MatchFinder{Hasher: &brotli.H4{}, MaxHistory: 1 << 18, MinHistory: 1 << 16}, 1<<16)
 }
 
+func TestEncodeSSAP(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 1 << 18}, 1<<16)
+}
+
 func benchmark(b *testing.B, filename string, m pack.MatchFinder, blockSize int) {
 	b.StopTimer()
 	b.ReportAllocs()
@@ -79,4 +83,8 @@ func BenchmarkEncodeM0(b *testing.B) {
 
 func BenchmarkEncodeH4(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &brotli.MatchFinder{Hasher: &brotli.H4{}}, 1<<20)
+}
+
+func BenchmarkEncodeSSAP(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 1 << 20}, 1<<20)
 }
