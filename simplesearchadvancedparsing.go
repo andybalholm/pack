@@ -8,7 +8,7 @@ const (
 )
 
 // SimpleSearchAdvancedParsing is an implementation of the MatchFinder
-// interface that uses a simple 6-byte hash table to find matches,
+// interface that uses a simple hash table to find matches,
 // but the advanced parsing technique from
 // https://fastcompression.blogspot.com/2011/12/advanced-parsing-strategies.html
 type SimpleSearchAdvancedParsing struct {
@@ -19,6 +19,10 @@ type SimpleSearchAdvancedParsing struct {
 	// MinLength is the length of the shortest match to return.
 	// The default is 4.
 	MinLength int
+
+	// HashLen is the number of bytes to use to calculate the hashes.
+	// The maximum is 8 and the default is 6.
+	HashLen int
 
 	table [1 << ssapBits]uint32
 
@@ -36,6 +40,9 @@ func (q *SimpleSearchAdvancedParsing) FindMatches(dst []Match, src []byte) []Mat
 	}
 	if q.MinLength == 0 {
 		q.MinLength = 4
+	}
+	if q.HashLen == 0 {
+		q.HashLen = 6
 	}
 	var nextEmit int
 
@@ -89,7 +96,7 @@ func (q *SimpleSearchAdvancedParsing) FindMatches(dst []Match, src []byte) []Mat
 		}
 
 		// Now look for a match.
-		h := ((binary.LittleEndian.Uint64(src[i:]) & (1<<48 - 1)) * hashMul64) >> (64 - ssapBits)
+		h := ((binary.LittleEndian.Uint64(src[i:]) & (1<<(8*q.HashLen) - 1)) * hashMul64) >> (64 - ssapBits)
 		candidate := int(q.table[h&ssapMask])
 		q.table[h&ssapMask] = uint32(i)
 

@@ -50,6 +50,10 @@ func TestEncodeDualHashLazy(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &DualHash{Lazy: true}, 1<<20)
 }
 
+func TestEncodeSSAP(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 32768, HashLen: 5}, 1<<20)
+}
+
 func TestEncodeHuffmanOnly(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", pack.NoMatchFinder{}, 1<<16)
 }
@@ -146,6 +150,10 @@ func BenchmarkEncodeDualHashLazy(b *testing.B) {
 
 func BenchmarkEncodeM0(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", brotli.M0{MaxDistance: 32768, MaxLength: 258}, 1<<16)
+}
+
+func BenchmarkEncodeSSAP(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 32768, HashLen: 5}, 1<<16)
 }
 
 func BenchmarkEncodeHuffmanOnly(b *testing.B) {
