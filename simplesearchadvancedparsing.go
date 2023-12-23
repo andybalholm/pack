@@ -3,7 +3,7 @@ package pack
 import "encoding/binary"
 
 const (
-	ssapBits = 16
+	ssapBits = 17
 	ssapMask = (1 << ssapBits) - 1
 )
 
