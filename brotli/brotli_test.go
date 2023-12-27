@@ -77,6 +77,10 @@ func TestEncodeSSAP(t *testing.T) {
 	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 1 << 18}, 1<<16)
 }
 
+func TestEncodeDHAP(t *testing.T) {
+	test(t, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHashAdvancedParsing{MaxDistance: 1 << 18}, 1<<16)
+}
+
 func TestWriterLevels(t *testing.T) {
 	data, err := ioutil.ReadFile("../testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -369,6 +373,10 @@ func BenchmarkEncodeDualHashOverlap(b *testing.B) {
 
 func BenchmarkEncodeSSAP(b *testing.B) {
 	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.SimpleSearchAdvancedParsing{MaxDistance: 1 << 20}, 1<<16)
+}
+
+func BenchmarkEncodeDHAP(b *testing.B) {
+	benchmark(b, "../testdata/Isaac.Newton-Opticks.txt", &pack.DualHashAdvancedParsing{MaxDistance: 1 << 20}, 1<<16)
 }
 
 func BenchmarkWriterLevels(b *testing.B) {

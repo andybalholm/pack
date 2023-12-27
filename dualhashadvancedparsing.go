@@ -3,16 +3,17 @@ package pack
 import "encoding/binary"
 
 const (
-	ssapBits = 17
-	ssapMask = (1 << ssapBits) - 1
+	dhapBits = 17
+	dhapMask = (1 << dhapBits) - 1
 )
 
-// SimpleSearchAdvancedParsing is an implementation of the MatchFinder
-// interface that uses a simple hash table to find matches,
-// but the advanced parsing technique from
+// DualHashAdvancedParsing is an implementation of the MatchFinder
+// interface that uses two hash tables to find matches
+// (with two different hash lengths),
+// and the advanced parsing technique from
 // https://fastcompression.blogspot.com/2011/12/advanced-parsing-strategies.html,
 // except that it looks for matches at every input position.
-type SimpleSearchAdvancedParsing struct {
+type DualHashAdvancedParsing struct {
 	// MaxDistance is the maximum distance (in bytes) to look back for
 	// a match. The default is 65535.
 	MaxDistance int
@@ -21,29 +22,24 @@ type SimpleSearchAdvancedParsing struct {
 	// The default is 4.
 	MinLength int
 
-	// HashLen is the number of bytes to use to calculate the hashes.
-	// The maximum is 8 and the default is 6.
-	HashLen int
-
-	table [1 << ssapBits]uint32
+	table  [1 << dhapBits]uint32
+	table8 [1 << dhapBits]uint32
 
 	history []byte
 }
 
-func (q *SimpleSearchAdvancedParsing) Reset() {
-	q.table = [1 << ssapBits]uint32{}
+func (q *DualHashAdvancedParsing) Reset() {
+	q.table = [1 << dhapBits]uint32{}
+	q.table8 = [1 << dhapBits]uint32{}
 	q.history = q.history[:0]
 }
 
-func (q *SimpleSearchAdvancedParsing) FindMatches(dst []Match, src []byte) []Match {
+func (q *DualHashAdvancedParsing) FindMatches(dst []Match, src []byte) []Match {
 	if q.MaxDistance == 0 {
 		q.MaxDistance = 65535
 	}
 	if q.MinLength == 0 {
 		q.MinLength = 4
-	}
-	if q.HashLen == 0 {
-		q.HashLen = 6
 	}
 	var nextEmit int
 
@@ -59,6 +55,13 @@ func (q *SimpleSearchAdvancedParsing) FindMatches(dst []Match, src []byte) []Mat
 				newV = 0
 			}
 			q.table[i] = uint32(newV)
+		}
+		for i, v := range q.table8 {
+			newV := int(v) - delta
+			if newV < 0 {
+				newV = 0
+			}
+			q.table8[i] = uint32(newV)
 		}
 	}
 
@@ -97,36 +100,61 @@ func (q *SimpleSearchAdvancedParsing) FindMatches(dst []Match, src []byte) []Mat
 		}
 
 		// Now look for a match.
-		h := ((binary.LittleEndian.Uint64(src[i:]) & (1<<(8*q.HashLen) - 1)) * hashMul64) >> (64 - ssapBits)
-		candidate := int(q.table[h&ssapMask])
-		q.table[h&ssapMask] = uint32(i)
+		var currentMatch AbsoluteMatch
+		currentChunk := binary.LittleEndian.Uint64(src[i:])
+		h := ((currentChunk & (1<<(8*5) - 1)) * hashMul64) >> (64 - dhapBits)
+		candidate := int(q.table[h&dhapMask])
+		q.table[h&dhapMask] = uint32(i)
 
-		if candidate == 0 || i-candidate > q.MaxDistance || i-candidate == matches[0].Start-matches[0].Match {
-			continue
-		}
-		if binary.LittleEndian.Uint32(src[candidate:]) != binary.LittleEndian.Uint32(src[i:]) {
-			continue
+		if candidate != 0 && i-candidate <= q.MaxDistance && i-candidate != matches[0].Start-matches[0].Match && binary.LittleEndian.Uint32(src[candidate:]) == uint32(currentChunk) {
+			// We have a 4-byte match now.
+
+			start := i
+			match := candidate
+			end := extendMatch(src, match+4, start+4)
+			for start > nextEmit && match > 0 && src[start-1] == src[match-1] {
+				start--
+				match--
+			}
+			if end-start > matches[0].End-matches[0].Start {
+				currentMatch = AbsoluteMatch{
+					Start: start,
+					End:   end,
+					Match: match,
+				}
+			}
 		}
 
-		// We have a 4-byte match now.
+		// Try again with an 8-byte hash.
+		h = (currentChunk * hashMul64) >> (64 - dhapBits)
+		candidate = int(q.table8[h&dhapMask])
+		q.table8[h&dhapMask] = uint32(i)
 
-		start := i
-		match := candidate
-		end := extendMatch(src, match+4, start+4)
-		for start > nextEmit && match > 0 && src[start-1] == src[match-1] {
-			start--
-			match--
+		if candidate != 0 && i-candidate <= q.MaxDistance && i-candidate != matches[0].Start-matches[0].Match && binary.LittleEndian.Uint64(src[candidate:]) == currentChunk {
+			// We have an 8-byte match now.
+
+			start := i
+			match := candidate
+			end := extendMatch(src, match+4, start+4)
+			for start > nextEmit && match > 0 && src[start-1] == src[match-1] {
+				start--
+				match--
+			}
+			if end-start > matches[0].End-matches[0].Start && end-start > currentMatch.End-currentMatch.Start {
+				currentMatch = AbsoluteMatch{
+					Start: start,
+					End:   end,
+					Match: match,
+				}
+			}
 		}
-		if end-start <= matches[0].End-matches[0].Start {
+
+		if currentMatch == (AbsoluteMatch{}) {
 			continue
 		}
 
 		matches = [3]AbsoluteMatch{
-			AbsoluteMatch{
-				Start: start,
-				End:   end,
-				Match: match,
-			},
+			currentMatch,
 			matches[0],
 			matches[1],
 		}
